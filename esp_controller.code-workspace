@@ -1,0 +1,68 @@
+{
+    "folders": [
+        {
+            "path": "."
+        },
+        {
+            "path": "../esp_tools/frameworks/esp-idf-v4.4.3"
+        }
+    ],
+    "settings": {
+        "idf.customExtraVars": "",
+        "terminal.integrated.env.windows": {
+            "IDF_PATH": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3",
+            "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3",
+            "OPENOCD_SCRIPTS": "${workspaceFolder}/../esp_tools/tools/openocd-esp32/v0.11.0-esp32-20220706/openocd-esp32/share/openocd/scripts",
+        },
+        "terminal.integrated.profiles.windows": {
+            "esp_idf": {
+                "path": "C:\\WINDOWS\\System32\\cmd.exe",
+                "args": [
+                    "/K",
+                    "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat"
+                ],
+            },
+            "MSYS2 Bash": {
+                "path": "C:\\msys64\\usr\\bin\\bash.exe",
+                "args": [
+                    "--login",
+                    "-i"
+                ],
+                "env": {
+                    "MSYSTEM": "MINGW64",
+                    "CHERE_INVOKING": "1",
+                    "MSYS2_PATH_TYPE": "inherit"
+                }
+            }
+        },
+        "terminal.integrated.defaultProfile.windows": "Command Prompt",
+        "files.associations": {
+            "array": "c",
+            "ranges": "c",
+            "span": "c",
+            "vector": "c",
+            "xstring": "c",
+            "xutility": "c",
+            "string": "c",
+            "string_view": "c",
+            "thread": "c",
+            "xlocale": "c",
+            "nvs.h": "c",
+            "nvs_flash.h": "c",
+            "esp_wps.h": "c",
+            "esp_wifi_types.h": "c",
+            "chrono": "c",
+            "codecvt": "c",
+            "functional": "c",
+            "ratio": "c",
+            "task.h": "c",
+            "freertos.h": "c",
+            "event_groups.h": "c",
+            "queue.h": "c"
+        },
+        "cSpell.words": [
+            "Dmytro",
+            "Shevchenko"
+        ],
+    }
+}

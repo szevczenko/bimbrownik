@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "Windows",
+            "includePath": 
+            [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/components/**",
+                "${workspaceFolder}/../esp_tools/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/xtensa-esp32-elf/**"
+            ],
+            "browse": 
+            {
+                "path" : 
+                [
+                    "${workspaceFolder}/**",
+                    "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3",
+                    "${workspaceFolder}/../esp_tools/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/xtensa-esp32-elf/**"
+                ]
+            },
+            "defines": [],
+            "compilerPath": "C:\\pojekty\\esp_tools\\tools\\xtensa-esp32-elf\\esp-2021r2-patch5-8.4.0\\xtensa-esp32-elf\\bin\\xtensa-esp32-elf-gcc.exe",
+            "cStandard": "c11",
+            "intelliSenseMode": "windows-gcc-x86",
+            "cppStandard": "c++11",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}
