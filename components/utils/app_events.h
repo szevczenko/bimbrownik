@@ -18,7 +18,8 @@
 #define EVENTS_TASK_LIST        \
   EVENT_TASK( APP_MANAGER )     \
   EVENT_TASK( NETWORK_MANAGER ) \
-  EVENT_TASK( WIFI_DRV )
+  EVENT_TASK( WIFI_DRV )        \
+  EVENT_TASK( TEMP_DRV )
 
 /* Public macro --------------------------------------------------------------*/
 #define ARRAY_SIZE( _array ) ( sizeof( _array ) / sizeof( ( _array )[0] ) )

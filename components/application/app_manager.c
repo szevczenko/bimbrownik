@@ -178,10 +178,15 @@ static void _state_init_event_init_response( const app_event_t* event )
     return;
   }
 
-  AppTimerStop(timers, TIMER_ID_TIMEOUT_INIT);
+  AppTimerStop( timers, TIMER_ID_TIMEOUT_INIT );
 
   if ( err_code == APP_MANAGER_ERR_OK )
   {
+    /* For tests */
+    app_event_t event_send = { 0 };
+    AppEventPrepareNoData( &event_send, MSG_ID_TEMPERATURE_SCAN_DEVICES_REQ, APP_EVENT_APP_MANAGER, APP_EVENT_TEMP_DRV );
+    TemperaturePostMsg( &event_send );
+    /* --------- */
     _change_state( IDLE );
     return;
   }

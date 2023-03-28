@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
 
 #include "freertos/FreeRTOS.h"
 
@@ -66,6 +67,7 @@
 #define CONFIG_DEBUG_APP_EVENT       TRUE
 #define CONFIG_DEBUG_APP_MANAGER     TRUE
 #define CONFIG_DEBUG_NETWORK_MANAGER TRUE
+#define CONFIG_DEBUG_TEMPERATURE     TRUE
 
 /////////////////////  CONFIG PERIPHERALS  ////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////

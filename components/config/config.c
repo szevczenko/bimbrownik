@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 
 #include "configCmd.h"

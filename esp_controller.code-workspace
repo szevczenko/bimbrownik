@@ -11,7 +11,7 @@
         "idf.customExtraVars": "",
         "terminal.integrated.env.windows": {
             "IDF_PATH": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3",
-            "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3",
+            "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3;C:\\cygwin64\\bin",
             "OPENOCD_SCRIPTS": "${workspaceFolder}/../esp_tools/tools/openocd-esp32/v0.11.0-esp32-20220706/openocd-esp32/share/openocd/scripts",
         },
         "terminal.integrated.profiles.windows": {
@@ -24,6 +24,18 @@
             },
             "MSYS2 Bash": {
                 "path": "C:\\msys64\\usr\\bin\\bash.exe",
+                "args": [
+                    "--login",
+                    "-i"
+                ],
+                "env": {
+                    "MSYSTEM": "MINGW64",
+                    "CHERE_INVOKING": "1",
+                    "MSYS2_PATH_TYPE": "inherit"
+                }
+            },
+            "CYGWIN Bash": {
+                "path": "C:\\cygwin64\\bin\\bash.exe",
                 "args": [
                     "--login",
                     "-i"
@@ -58,7 +70,25 @@
             "task.h": "c",
             "freertos.h": "c",
             "event_groups.h": "c",
-            "queue.h": "c"
+            "queue.h": "c",
+            "errno.h": "c",
+            "tftp_server.h": "c",
+            "lvgl.h": "c",
+            "uart_struct.h": "c",
+            "uart.h": "c",
+            "ow_uart.h": "c",
+            "app_timers.h": "c",
+            "lvgl_spi_conf.h": "c",
+            "ow_esp32.h": "c",
+            "app_events.h": "c",
+            "stddef.h": "c",
+            "config.h": "c",
+            "assert.h": "c",
+            "app_msg_id.h": "c",
+            "app_manager.h": "c",
+            "freertosconfig.h": "c",
+            "network_manager.h": "c",
+            "esp_freertos_hooks.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

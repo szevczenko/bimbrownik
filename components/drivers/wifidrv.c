@@ -181,7 +181,7 @@ static void _change_state( wifi_drv_state_t new_state )
 static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t data_size )
 {
   app_event_t event = {};
-  if ( data_size > 0 )
+  if ( data_size == 0 )
   {
     AppEventPrepareNoData( &event, id, APP_EVENT_WIFI_DRV, APP_EVENT_WIFI_DRV );
   }

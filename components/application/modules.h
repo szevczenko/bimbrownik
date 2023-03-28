@@ -17,6 +17,7 @@
 #include "app_msg_id.h"
 #include "config.h"
 #include "network_manager.h"
+#include "temperature.h"
 
 /* Public macro --------------------------------------------------------------*/
 // clang-format off
@@ -41,6 +42,9 @@ typedef struct
 
 static modules_apps_t modules[] = {
   MODULES_START_DEFINITION( APP_EVENT_NETWORK_MANAGER, NetworkManagerPostMsg ),
+  MODULE_INIT_MSG( MSG_ID_INIT_REQ ),
+  MODULE_END_DEFINITION
+  MODULES_START_DEFINITION( APP_EVENT_TEMP_DRV, TemperaturePostMsg ),
   MODULE_INIT_MSG( MSG_ID_INIT_REQ ),
   MODULE_END_DEFINITION };
 

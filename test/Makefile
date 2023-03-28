@@ -3,19 +3,17 @@ BUILD_DIR := ./build
 
 # Compiler - Note this expects you are using MinGW version of GCC
 CC := gcc
-CFLAGS := -O0 -g3 -Wall -Wextra -c -fmessage-length=0 -Wcast-qual -D_WIN32_WINNT=0x0601 -DUNITY_FIXTURE_NO_EXTRAS \
+CFLAGS := -O0 -g3 -Wextra -Wno-unused-parameter -Wall -c -fmessage-length=0 -Wcast-qual -D_WIN32_WINNT=0x0601 -DUNITY_FIXTURE_NO_EXTRAS -DprojCOVERAGE_TEST=1 \
 					-Wunused-parameter -Wunused-function -Wtype-limits
 
 # Linker - Note this expects you are using MinGW version of GCC
 LD :=  gcc
 LDFLAGS := -Xlinker -Map=$(BUILD_DIR)/rtosdemo.map
 
-
 # Executable Targets
 EXE := $(BUILD_DIR)/test.exe
 
 # Unity Kernel
-
 UNITY_ROOT := $(abspath ../lib/Unity)
 UNITY_BUILD_DIR := $(BUILD_DIR)/Unity
 
@@ -28,6 +26,7 @@ UNITY_SOURCES_NAMES := $(notdir $(UNITY_SRC))
 UNITY_OBJS := $(UNITY_SOURCES_NAMES:%.c=$(UNITY_BUILD_DIR)/%.o)
 
 # FreeRTOS Kernel
+FREERTOS_DIR := $(abspath ../lib/FreeRTOS/FreeRTOS)
 FREERTOS_KERNEL_DIR := $(abspath ../lib/FreeRTOS/FreeRTOS/Source)
 FREERTOS_KERNEL_INCLUDES :=
 FREERTOS_KERNEL_SOURCES :=
@@ -37,18 +36,46 @@ FREERTOS_KERNEL_BUILD_DIR := $(BUILD_DIR)/FreeRTOS-Kernel
 
 ## FreeRTOS Kernel includes
 FREERTOS_KERNEL_INCLUDES += $(wildcard $(FREERTOS_KERNEL_DIR)/include/*.h)
-FREERTOS_KERNEL_INCLUDE_DIRS += -I $(FREERTOS_KERNEL_DIR)/include
+FREERTOS_KERNEL_INCLUDE_DIRS += -I $(FREERTOS_KERNEL_DIR)/include \
+																-I ${FREERTOS_DIR}/Demo/Common/include
 
 ## FreeRTOS Kernel sources
 FREERTOS_KERNEL_SOURCES += $(wildcard $(FREERTOS_KERNEL_DIR)/*.c)
 FREERTOS_KERNEL_SOURCES += $(FREERTOS_KERNEL_DIR)/portable/MemMang/heap_4.c
 
 ## FreeRTOS Kernel Windows port includes
-FREERTOS_KERNEL_INCLUDES += $(FREERTOS_KERNEL_DIR)/portable/MSVC-MingW/portmacro.h
-FREERTOS_KERNEL_INCLUDE_DIRS += -I $(FREERTOS_KERNEL_DIR)/portable/MSVC-MingW
+FREERTOS_KERNEL_INCLUDES += $(FREERTOS_KERNEL_DIR)/portable/ThirdParty/GCC/Posix/portmacro.h
+FREERTOS_KERNEL_INCLUDE_DIRS += -I $(FREERTOS_KERNEL_DIR)/portable/ThirdParty/GCC/Posix \
+																-I $(FREERTOS_KERNEL_DIR)/portable/ThirdParty/GCC/Posix/utils
 
 ## FreeRTOS Kernel Windows port sources
-FREERTOS_KERNEL_SOURCES += $(FREERTOS_KERNEL_DIR)/portable/MSVC-MingW/port.c
+FREERTOS_KERNEL_SOURCES += $(FREERTOS_KERNEL_DIR)/portable/ThirdParty/GCC/Posix/port.c \
+														$(FREERTOS_KERNEL_DIR)/portable/ThirdParty/GCC/Posix/utils/wait_for_event.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/AbortDelay.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/BlockQ.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/blocktim.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/countsem.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/death.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/dynamic.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/EventGroupsDemo.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/flop.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/GenQTest.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/integer.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/IntSemTest.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/MessageBufferAMP.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/MessageBufferDemo.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/PollQ.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/QPeek.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/QueueOverwrite.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/QueueSet.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/QueueSetPolling.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/recmutex.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/semtest.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/StaticAllocation.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/StreamBufferDemo.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/StreamBufferInterrupt.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/TaskNotify.c
+FREERTOS_KERNEL_SOURCES += ${FREERTOS_DIR}/Demo/Common/Minimal/TimerDemo.c
 
 ## FreeRTOS Kernel configuration includes
 FREERTOS_KERNEL_INCLUDES += ./FreeRTOSConfig.h
@@ -67,19 +94,28 @@ PROJECT_DIR := $(PROJECT_ROOT)
 PROJECT_SRC := $(wildcard $(PROJECT_DIR)/application/*.c) \
 								$(wildcard $(PROJECT_DIR)/config/*.c) \
 								$(wildcard $(PROJECT_DIR)/drivers/*.c) \
+								$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/devices/*.c) \
+								$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/ow/*.c) \
 								$(wildcard $(PROJECT_DIR)/utils/*.c) \
+								$(wildcard $(PROJECT_DIR)/lftpd/*.c) \
 
 PROJECT_INCLUDES :=	$(wildcard $(PROJECT_DIR)/application/*.h) \
-										$(wildcard $(PROJECT_DIR)/config/*.c) \
-										$(wildcard $(PROJECT_DIR)/drivers/*.c) \
-										$(wildcard $(PROJECT_DIR)/utils/*.c) \
-										$(wildcard $(PROJECT_DIR)/project_hal/*.c) \
+										$(wildcard $(PROJECT_DIR)/config/*.h) \
+										$(wildcard $(PROJECT_DIR)/drivers/*.h) \
+										$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/include/*.h) \
+										$(wildcard $(PROJECT_DIR)/utils/*.h) \
+										$(wildcard $(PROJECT_DIR)/project_hal/*.h) \
+										$(wildcard $(PROJECT_DIR)/lftpd/include*.h) \
+										$(wildcard $(PROJECT_DIR)/lftpd/*.h) \
 
 PROJECT_INCLUDES_DIRS := -I $(PROJECT_DIR)/application \
 						 							-I $(PROJECT_DIR)/config \
 													 -I $(PROJECT_DIR)/drivers \
+													 -I $(PROJECT_DIR)/drivers/onewire_uart/src/include \
 													 -I $(PROJECT_DIR)/utils \
 													 -I $(PROJECT_DIR)/project_hal \
+													 -I $(PROJECT_DIR)/lftpd/include \
+													 -I $(PROJECT_DIR)/lftpd \
 
 PROJECT_SOURCES_NAMES := $(notdir $(PROJECT_SRC))
 PROJECT_OBJS := $(PROJECT_SOURCES_NAMES:%.c=$(PROJECT_BUILD_DIR)/%.o)
@@ -133,6 +169,4 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 print_debug:
-	echo $(PROJECT_SRC)
-
-
+	@echo $(PROJECT_INCLUDES_DIRS)
