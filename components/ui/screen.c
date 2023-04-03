@@ -32,8 +32,6 @@
 #include "lvgl_touch/tp_spi.h"
 #include "ui.h"
 
-#define CONFIG_LV_TFT_DISPLAY_MONOCHROME
-
 /*********************
  *      DEFINES
  *********************/
@@ -56,15 +54,11 @@ void screenInit( void )
   xTaskCreatePinnedToCore( guiTask, "gui", 4096 * 2, NULL, 0, NULL, 1 );
 }
 
-/* Creates a semaphore to handle concurrent call to lvgl stuff
- * If you wish to call *any* lvgl function from other threads/tasks
- * you should lock on the very same semaphore! */
-SemaphoreHandle_t xGuiSemaphore;
-
-#define SCREEN_SPI_HOST SPI2_HOST
-#define MISO_PIN 19
-#define MOSI_PIN 23
-#define CLK_PIN  18
+static SemaphoreHandle_t xGuiSemaphore;
+static lv_disp_draw_buf_t disp_buf;
+static lv_color_t* buf1[DISP_BUF_SIZE];
+static lv_color_t* buf2 = NULL;
+static lv_disp_drv_t disp_drv;
 
 static void guiTask( void* pvParameter )
 {
@@ -72,57 +66,13 @@ static void guiTask( void* pvParameter )
   xGuiSemaphore = xSemaphoreCreateMutex();
 
   lv_init();
-
-  /* Initialize SPI or I2C bus used by the drivers */
   lvgl_driver_init();
+  lv_disp_draw_buf_init( &disp_buf, buf1, buf2, DISP_BUF_SIZE );
 
-  // lvgl_spi_driver_init( SCREEN_SPI_HOST,
-  //                       MISO_PIN, MOSI_PIN, CLK_PIN,
-  //                       SPI_BUS_MAX_TRANSFER_SZ, 1,
-  //                       -1, -1 );
-
-  // disp_spi_add_device( SCREEN_SPI_HOST );
-  // tp_spi_add_device( SCREEN_SPI_HOST );
-
-  // disp_driver_init();
-  // touch_driver_init();
-  /* End init */
-
-  lv_color_t* buf1 = heap_caps_malloc( DISP_BUF_SIZE * sizeof( lv_color_t ), MALLOC_CAP_DMA );
-  assert( buf1 != NULL );
-
-  /* Use double buffered when not working with monochrome displays */
-#ifndef CONFIG_LV_TFT_DISPLAY_MONOCHROME
-  lv_color_t* buf2 = heap_caps_malloc( DISP_BUF_SIZE * sizeof( lv_color_t ), MALLOC_CAP_DMA );
-  assert( buf2 != NULL );
-#else
-  static lv_color_t* buf2 = NULL;
-#endif
-
-  static lv_disp_draw_buf_t disp_buf;
-
-  uint32_t size_in_px = DISP_BUF_SIZE;
-
-  /* Initialize the working buffer depending on the selected display.
-     * NOTE: buf2 == NULL when using monochrome displays. */
-  lv_disp_draw_buf_init( &disp_buf, buf1, buf2, size_in_px );
-
-  lv_disp_drv_t disp_drv;
   lv_disp_drv_init( &disp_drv );
   disp_drv.flush_cb = disp_driver_flush;
-
-#if defined CONFIG_DISPLAY_ORIENTATION_PORTRAIT || defined CONFIG_DISPLAY_ORIENTATION_PORTRAIT_INVERTED
-  disp_drv.rotated = 1;
-#endif
-
-  /* When using a monochrome display we need to register the callbacks:
-     * - rounder_cb
-     * - set_px_cb */
-#ifdef CONFIG_LV_TFT_DISPLAY_MONOCHROME
-  disp_drv.rounder_cb = disp_driver_rounder;
-  disp_drv.set_px_cb = disp_driver_set_px;
-#endif
-
+  disp_drv.hor_res = 320;
+  disp_drv.ver_res = 480;
   disp_drv.draw_buf = &disp_buf;
   lv_disp_drv_register( &disp_drv );
 
@@ -158,13 +108,6 @@ static void guiTask( void* pvParameter )
       xSemaphoreGive( xGuiSemaphore );
     }
   }
-
-  /* A task should NEVER return */
-  free( buf1 );
-#ifndef CONFIG_LV_TFT_DISPLAY_MONOCHROME
-  free( buf2 );
-#endif
-  vTaskDelete( NULL );
 }
 
 static void lv_tick_task( void* arg )

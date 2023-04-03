@@ -3,16 +3,8 @@
 // LVGL version: 8.3.3
 // Project name: SquareLine_Project
 
-#ifndef _UI_EVENTS_H
-#define _UI_EVENTS_H
+#include "ui.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-#ifdef __cplusplus
-} /*extern "C"*/
-#endif
-
-#endif
+void ui_comp_Screen1_Image1_create_hook(lv_obj_t * comp)
+{
+}

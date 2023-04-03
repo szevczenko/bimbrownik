@@ -17,12 +17,12 @@
 void app_main( void )
 {
   // printf( "Hello World\n\r" );
-  // configInit();
-  // wifiDrvInit( WIFI_TYPE_DEVICE );
-  // NetworkManagerInit();
-  // AppManagerInit();
-  // TemperatureInit();
-  screenInit();
+  configInit();
+  wifiDrvInit( WIFI_TYPE_DEVICE );
+  NetworkManagerInit();
+  AppManagerInit();
+  TemperatureInit();
+  // screenInit();
 
   // ow_init( &ow, &ow_ll_drv_esp32, NULL ); /* Initialize 1-Wire library and set user argument to NULL */
   // uint8_t tx[8] = {1, 2, 3, 4, 5, 6, 7, 8};
