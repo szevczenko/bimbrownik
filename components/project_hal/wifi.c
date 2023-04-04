@@ -116,6 +116,67 @@ static void _got_ip_event_cb( void* arg, esp_event_base_t event_base, int32_t ev
   }
 }
 
+static void _wps_event_handler( void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data )
+{
+  static int ap_idx = 1;
+
+  switch ( event_id )
+  {
+    case WIFI_EVENT_STA_WPS_ER_SUCCESS:
+      ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_SUCCESS" );
+      {
+        wifi_event_sta_wps_er_success_t* evt =
+          (wifi_event_sta_wps_er_success_t*) event_data;
+        int i;
+
+        if ( evt )
+        {
+          s_ap_creds_num = evt->ap_cred_cnt;
+          for ( i = 0; i < s_ap_creds_num; i++ )
+          {
+            memcpy( wps_ap_creds[i].sta.ssid, evt->ap_cred[i].ssid,
+                    sizeof( evt->ap_cred[i].ssid ) );
+            memcpy( wps_ap_creds[i].sta.password, evt->ap_cred[i].passphrase,
+                    sizeof( evt->ap_cred[i].passphrase ) );
+          }
+          /* If multiple AP credentials are received from WPS, connect with first one */
+          ESP_LOGI( TAG, "Connecting to SSID: %s, Passphrase: %s",
+                    wps_ap_creds[0].sta.ssid, wps_ap_creds[0].sta.password );
+          ESP_ERROR_CHECK( esp_wifi_set_config( WIFI_IF_STA, &wps_ap_creds[0] ) );
+        }
+       /*
+        * If only one AP credential is received from WPS, there will be no event data and
+        * esp_wifi_set_config() is already called by WPS modules for backward compatibility
+        * with legacy apps. So directly attempt connection here.
+        */
+        ESP_ERROR_CHECK( esp_wifi_wps_disable() );
+        esp_wifi_connect();
+      }
+      break;
+    case WIFI_EVENT_STA_WPS_ER_FAILED:
+      ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_FAILED" );
+      ESP_ERROR_CHECK( esp_wifi_wps_disable() );
+      ESP_ERROR_CHECK( esp_wifi_wps_enable( &config ) );
+      ESP_ERROR_CHECK( esp_wifi_wps_start( 0 ) );
+      break;
+    case WIFI_EVENT_STA_WPS_ER_TIMEOUT:
+      ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_TIMEOUT" );
+      ESP_ERROR_CHECK( esp_wifi_wps_disable() );
+      ESP_ERROR_CHECK( esp_wifi_wps_enable( &config ) );
+      ESP_ERROR_CHECK( esp_wifi_wps_start( 0 ) );
+      break;
+    case WIFI_EVENT_STA_WPS_ER_PIN:
+      ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_PIN" );
+      /* display the PIN code */
+      wifi_event_sta_wps_er_pin_t* event = (wifi_event_sta_wps_er_pin_t*) event_data;
+      ESP_LOGI( TAG, "WPS_PIN = " PINSTR, PIN2STR( event->pin_code ) );
+      break;
+    default:
+      break;
+  }
+}
+
 static void _debug_cb( void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data )
 {
   LOG( PRINT_DEBUG, "%s EVENT_WIFI %s %d", __func__, event_base, event_id );

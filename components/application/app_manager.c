@@ -67,6 +67,8 @@ static module_ctx_t ctx;
 /* Private functions declaration ---------------------------------------------*/
 static void _timeout_init_cb( TimerHandle_t xTimer );
 
+static void _state_common_temp_sensor_scan_res( const app_event_t* event );
+
 static void _state_disabled_event_init_request( const app_event_t* event );
 
 static void _state_init_event_init_request( const app_event_t* event );
@@ -89,6 +91,7 @@ static const struct app_events_handler _init_state_handler_array[] =
 static const struct app_events_handler _idle_state_handler_array[] =
   {
     EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
+    EVENT_ITEM( MSG_ID_APP_MANAGER_TEMP_SENSORS_SCAN_RES, _state_common_temp_sensor_scan_res ),
 };
 
 struct state_context
@@ -222,6 +225,11 @@ static void _state_init_event_init_module_response( const app_event_t* event )
     app_manager_err_t err_code = result ? APP_MANAGER_ERR_OK : APP_MANAGER_FAIL_OPERATION;
     _send_internal_event( MSG_ID_APP_MANAGER_INIT_RES, &err_code, sizeof( err_code ) );
   }
+}
+
+static void _state_common_temp_sensor_scan_res( const app_event_t* event )
+{
+  /* ToDo: process event data */
 }
 
 static void _task( void* pv )

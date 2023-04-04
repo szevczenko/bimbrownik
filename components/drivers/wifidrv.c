@@ -90,6 +90,7 @@ static void _state_common_event_deinit_request( const app_event_t* event );
 static void _state_disabled_event_init_request( const app_event_t* event );
 
 static void _state_idle_event_connect_req( const app_event_t* event );
+static void _state_idle_event_wps_req( const app_event_t* event );
 
 static void _state_connecting_event_connect_req( const app_event_t* event );
 static void _state_connecting_event_timeout_connect( const app_event_t* event );
@@ -107,7 +108,7 @@ static const struct app_events_handler _wifi_disabled_state_handler_array[] =
 static const struct app_events_handler _wifi_idle_state_handler_array[] =
   {
     EVENT_ITEM( MSG_ID_WIFI_CONNECT_REQ, _state_idle_event_connect_req ),
-    EVENT_ITEM( MSG_ID_WIFI_WPS_REQ, _state_disabled_event_init_request ),
+    EVENT_ITEM( MSG_ID_WIFI_WPS_REQ, _state_idle_event_wps_req ),
     EVENT_ITEM( MSG_ID_WIFI_SCAN_REQ, _state_disabled_event_init_request ),
     EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
 };
@@ -126,7 +127,7 @@ static const struct app_events_handler _wifi_wps_state_handler_array[] =
 
 static const struct app_events_handler _wifi_connecting_state_handler_array[] =
   {
-    EVENT_ITEM( MSG_ID_INIT_REQ, _state_connecting_event_connect_req ),
+    EVENT_ITEM( MSG_ID_WIFI_CONNECT_REQ, _state_connecting_event_connect_req ),
     EVENT_ITEM( MSG_ID_WIFI_TIMEOUT_CONNECT, _state_connecting_event_timeout_connect ),
     EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
 };
@@ -225,6 +226,12 @@ static void _state_idle_event_connect_req( const app_event_t* event )
 {
   _change_state( CONNECTING );
   _send_internal_event( MSG_ID_WIFI_CONNECT_REQ, NULL, 0 );
+}
+
+static void _state_idle_event_wps_req( const app_event_t* event )
+{
+  _change_state( WPS );
+  _send_internal_event( MSG_ID_WIFI_WPS_REQ, NULL, 0 );
 }
 
 static void _state_connecting_event_connect_req( const app_event_t* event )
