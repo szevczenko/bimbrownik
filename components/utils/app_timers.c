@@ -32,7 +32,7 @@ void AppTimersInit( app_timer_t* timers, uint32_t timers_cnt )
 {
   for ( int i = 0; i < timers_cnt; i++ )
   {
-    timers[i].timer = xTimerCreate( timers[i].timer_name, timers[i].timeout_ms, pdFALSE, NULL, timers[i].callback );
+    timers[i].timer = xTimerCreate( timers[i].timer_name, pdMS_TO_TICKS( timers[i].timeout_ms ), pdFALSE, NULL, timers[i].callback );
   }
 }
 

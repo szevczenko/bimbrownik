@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "wifi.h"
 
 wifi_err_t WiFiInitAccessPoint( const char* name )
@@ -47,7 +49,9 @@ wifi_err_t wifiDataSave( const wifiConData_t* data )
 
 wifi_err_t wifiDataRead( wifiConData_t* data )
 {
-  return WIFI_ERR_FAIL;
+  strcpy( data->ssid, "exampleSsid" );
+  strcpy( data->password, "examplePassword" );
+  return WIFI_ERR_OK;
 }
 
 wifi_err_t WiFiWPSStart( uint32_t time_ms )

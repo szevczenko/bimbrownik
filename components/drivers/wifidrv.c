@@ -94,6 +94,7 @@ static void _state_idle_event_wps_req( const app_event_t* event );
 
 static void _state_connecting_event_connect_req( const app_event_t* event );
 static void _state_connecting_event_timeout_connect( const app_event_t* event );
+static void _state_connecting_connect_res( const app_event_t* event );
 
 static void _state_working_event_update_wifi_info( const app_event_t* event );
 static void _state_working_event_disconnect_req( const app_event_t* event );
@@ -129,6 +130,7 @@ static const struct app_events_handler _wifi_connecting_state_handler_array[] =
   {
     EVENT_ITEM( MSG_ID_WIFI_CONNECT_REQ, _state_connecting_event_connect_req ),
     EVENT_ITEM( MSG_ID_WIFI_TIMEOUT_CONNECT, _state_connecting_event_timeout_connect ),
+    EVENT_ITEM( MSG_ID_WIFI_CONNECT_RES, _state_connecting_connect_res ),
     EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
 };
 
@@ -210,12 +212,13 @@ static void _state_disabled_event_init_request( const app_event_t* event )
 {
   /* Add check wifi type */
   WiFiInitSTA();
+  wifi_drv_err_t err = WIFI_DRV_ERR_WIFI_MEMORY_EMPTY;
   if ( wifiDataRead( &ctx.wifi_con_data ) == WIFI_ERR_OK )
   {
     LOG( PRINT_INFO, "Read from NVS %s %s", ctx.wifi_con_data.ssid, ctx.wifi_con_data.password );
     ctx.read_wifi_data = true;
+    err = WIFI_DRV_ERR_OK;
   }
-  wifi_drv_err_t err = WIFI_DRV_ERR_OK;
   app_event_t response = { 0 };
   AppEventPrepareWithData( &response, MSG_ID_INIT_RES, APP_EVENT_WIFI_DRV, APP_EVENT_NETWORK_MANAGER, &err, sizeof( err ) );
   NetworkManagerPostMsg( &response );
@@ -237,11 +240,14 @@ static void _state_idle_event_wps_req( const app_event_t* event )
 static void _state_connecting_event_connect_req( const app_event_t* event )
 {
   wifi_err_t ret = WiFiConnect( ctx.wifi_con_data.ssid, ctx.wifi_con_data.password );
-  AppTimerStart( timers, TIMER_ID_CONNECT_TIMEOUT );
-  if ( ret != WIFI_ERR_OK )
+  if (ret == WIFI_ERR_OK)
   {
-    LOG( PRINT_INFO, "Internal error connect %d attemps %d", ret, ctx.connect_attemps );
-    _change_state( IDLE );
+    bool result = true;
+    _send_internal_event( MSG_ID_WIFI_CONNECT_RES, &result, sizeof( result ) );
+  }
+  else
+  {
+    AppTimerStart( timers, TIMER_ID_CONNECT_TIMEOUT );
   }
 }
 
@@ -261,6 +267,32 @@ static void _state_connecting_event_timeout_connect( const app_event_t* event )
     _send_internal_event( MSG_ID_WIFI_CONNECT_RES, &result, sizeof( result ) );
     ctx.connect_attemps = 0;
   }
+}
+
+static void _state_connecting_connect_res( const app_event_t* event )
+{
+  bool result = false;
+  wifi_drv_err_t err = WIFI_DRV_ERR_OK;
+  if ( AppEventGetData( event, &result, sizeof( result ) ) == false )
+  {
+    LOG( PRINT_ERROR, "%s Cannot get data from event", __func__ );
+    _change_state( DISABLED );
+    return;
+  }
+
+  if ( result )
+  {
+    AppTimerStart( timers, TIMER_ID_UPDATE_WIFI_INFO );
+    _change_state( WORKING );
+  }
+  else
+  {
+    _change_state( IDLE );
+    wifi_drv_err_t err = WIFI_DRV_ERR_FAIL;
+  }
+  app_event_t response = { 0 };
+  AppEventPrepareWithData( &response, MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_RES, APP_EVENT_WIFI_DRV, APP_EVENT_NETWORK_MANAGER, &err, sizeof( err ) );
+  NetworkManagerPostMsg( &response );
 }
 
 static void _state_working_event_update_wifi_info( const app_event_t* event )

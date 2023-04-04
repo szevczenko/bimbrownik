@@ -21,9 +21,11 @@
   MSG( APP_MANAGER_TIMEOUT_INIT )          \
   MSG( APP_MANAGER_TEMP_SENSORS_SCAN_RES ) \
                                            \
-  /*Network manager ids*/                  \
+  /* Network manager ids */                \
   MSG( NETWORK_MANAGER_TIMEOUT_INIT )      \
   MSG( NETWORK_MANAGER_INIT_RES )          \
+  MSG( NETWORK_MANAGER_WIFI_CONNECT_REQ )  \
+  MSG( NETWORK_MANAGER_WIFI_CONNECT_RES )  \
                                            \
   /* Wifi msg ids */                       \
   MSG( WIFI_CONNECT_REQ )                  \

@@ -36,6 +36,7 @@ typedef enum
 typedef enum
 {
   WIFI_DRV_ERR_OK,
+  WIFI_DRV_ERR_WIFI_MEMORY_EMPTY,
   WIFI_DRV_ERR_FAIL,
   WIFI_DRV_ERR_LAST
 } wifi_drv_err_t;

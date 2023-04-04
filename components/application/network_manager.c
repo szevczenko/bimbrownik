@@ -54,6 +54,8 @@ typedef struct
   uint32_t modules_init;
 
   bool wifi_init_status;
+  bool wifi_is_read_connecting_data;
+  bool wifi_is_connected;
   QueueHandle_t queue;
 } module_ctx_t;
 
@@ -76,6 +78,8 @@ static void _state_init_event_init_request( const app_event_t* event );
 static void _state_init_event_init_response( const app_event_t* event );
 static void _state_init_event_init_module_response( const app_event_t* event );
 static void _state_init_event_timeout_init( const app_event_t* event );
+static void _state_init_event_wifi_connect_req( const app_event_t* event );
+static void _state_init_event_wifi_connect_res( const app_event_t* event );
 
 /* Status callbacks declaration. ---------------------------------------------*/
 static const struct app_events_handler _disabled_state_handler_array[] =
@@ -88,6 +92,8 @@ static const struct app_events_handler _init_state_handler_array[] =
     EVENT_ITEM( MSG_ID_INIT_REQ, _state_init_event_init_request ),
     EVENT_ITEM( MSG_ID_NETWORK_MANAGER_INIT_RES, _state_init_event_init_response ),
     EVENT_ITEM( MSG_ID_NETWORK_MANAGER_TIMEOUT_INIT, _state_init_event_timeout_init ),
+    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_REQ, _state_init_event_timeout_init ),
+    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_RES, _state_init_event_timeout_init ),
     EVENT_ITEM( MSG_ID_INIT_RES, _state_init_event_init_module_response ),
 };
 
@@ -181,6 +187,12 @@ static void _state_init_event_init_response( const app_event_t* event )
   if ( ctx.wifi_init_status )
   {
     _change_state( IDLE );
+    if ( ctx.wifi_is_read_connecting_data )
+    {
+      app_event_t event_send = { 0 };
+      AppEventPrepareNoData( &event_send, MSG_ID_WIFI_CONNECT_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_WIFI_DRV );
+      WifiDrvPostMsg( &event_send );
+    }
     result = true;
   }
   else
@@ -192,7 +204,7 @@ static void _state_init_event_init_response( const app_event_t* event )
   AppEventPrepareWithData( &response, MSG_ID_INIT_RES, APP_EVENT_NETWORK_MANAGER, APP_EVENT_APP_MANAGER, &result, sizeof( result ) );
   AppManagerPostMsg( &response );
 
-  AppTimerStop(timers, TIMER_ID_TIMEOUT_INIT);
+  AppTimerStop( timers, TIMER_ID_TIMEOUT_INIT );
 }
 
 static void _state_init_event_init_module_response( const app_event_t* event )
@@ -211,10 +223,17 @@ static void _state_init_event_init_module_response( const app_event_t* event )
     if ( err == WIFI_DRV_ERR_OK )
     {
       ctx.wifi_init_status = true;
+      ctx.wifi_is_read_connecting_data = true;
+    }
+    else if ( err == WIFI_DRV_ERR_WIFI_MEMORY_EMPTY )
+    {
+      ctx.wifi_init_status = true;
+      ctx.wifi_is_read_connecting_data = false;
     }
     else
     {
       ctx.wifi_init_status = false;
+      ctx.wifi_is_read_connecting_data = false;
     }
   }
 
