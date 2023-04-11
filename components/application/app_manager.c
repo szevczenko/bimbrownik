@@ -10,9 +10,9 @@
 
 #include "app_manager.h"
 
+#include "app_config.h"
 #include "app_events.h"
 #include "app_timers.h"
-#include "app_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
@@ -57,6 +57,7 @@ typedef struct
 typedef enum
 {
   TIMER_ID_TIMEOUT_INIT,
+  TIMER_ID_WPS_TEST,
   TIMER_ID_LAST
 } timer_id;
 
@@ -66,10 +67,13 @@ static module_ctx_t ctx;
 
 /* Private functions declaration ---------------------------------------------*/
 static void _timeout_init_cb( TimerHandle_t xTimer );
+static void _timer_wps_test_cb( TimerHandle_t xTimer );
 
 static void _state_common_temp_sensor_scan_res( const app_event_t* event );
 
 static void _state_disabled_event_init_request( const app_event_t* event );
+
+static void _state_idle_event_wps_test( const app_event_t* event );
 
 static void _state_init_event_init_request( const app_event_t* event );
 static void _state_init_event_init_response( const app_event_t* event );
@@ -92,6 +96,7 @@ static const struct app_events_handler _idle_state_handler_array[] =
   {
     EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
     EVENT_ITEM( MSG_ID_APP_MANAGER_TEMP_SENSORS_SCAN_RES, _state_common_temp_sensor_scan_res ),
+    EVENT_ITEM( MSG_ID_APP_MANAGER_TEMP_WPS_TEST, _state_idle_event_wps_test ),
 };
 
 struct state_context
@@ -116,7 +121,8 @@ static const struct state_context module_state[STATE_TOP] =
 
 static app_timer_t timers[] =
   {
-    TIMER_ITEM( TIMER_ID_TIMEOUT_INIT, _timeout_init_cb, 1500, "AppTimeoutInit" ) };
+    TIMER_ITEM( TIMER_ID_TIMEOUT_INIT, _timeout_init_cb, 1500, "AppTimeoutInit" ),
+    TIMER_ITEM( TIMER_ID_WPS_TEST, _timer_wps_test_cb, 35000, "WpsTest" ) };
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -152,12 +158,25 @@ static void _timeout_init_cb( TimerHandle_t xTimer )
   _send_internal_event( MSG_ID_APP_MANAGER_TIMEOUT_INIT, NULL, 0 );
 }
 
+static void _timer_wps_test_cb( TimerHandle_t xTimer )
+{
+  _send_internal_event( MSG_ID_APP_MANAGER_TEMP_WPS_TEST, NULL, 0 );
+  AppTimerStart( timers, TIMER_ID_WPS_TEST );
+}
+
 /* State machine functions ---------------------------------------------------*/
 
 static void _state_disabled_event_init_request( const app_event_t* event )
 {
   _change_state( INIT );
   _send_internal_event( MSG_ID_APP_MANAGER_INIT_REQ, NULL, 0 );
+}
+
+static void _state_idle_event_wps_test( const app_event_t* event )
+{
+  app_event_t event_send = {};
+  AppEventPrepareNoData( &event_send, MSG_ID_NETWORK_MANAGER_WPS_CONNECT_REQ, APP_EVENT_APP_MANAGER, APP_EVENT_NETWORK_MANAGER );
+  NetworkManagerPostMsg( &event_send );
 }
 
 static void _state_init_event_init_request( const app_event_t* event )
@@ -186,9 +205,12 @@ static void _state_init_event_init_response( const app_event_t* event )
   if ( err_code == APP_MANAGER_ERR_OK )
   {
     /* For tests */
-    app_event_t event_send = { 0 };
-    AppEventPrepareNoData( &event_send, MSG_ID_TEMPERATURE_SCAN_DEVICES_REQ, APP_EVENT_APP_MANAGER, APP_EVENT_TEMP_DRV );
-    TemperaturePostMsg( &event_send );
+    // app_event_t event_send = { 0 };
+    // AppEventPrepareNoData( &event_send, MSG_ID_TEMPERATURE_SCAN_DEVICES_REQ, APP_EVENT_APP_MANAGER, APP_EVENT_TEMP_DRV );
+    // TemperaturePostMsg( &event_send );
+
+    AppTimerStart( timers, TIMER_ID_WPS_TEST );
+    _send_internal_event( MSG_ID_APP_MANAGER_TEMP_WPS_TEST, NULL, 0 );
     /* --------- */
     _change_state( IDLE );
     return;

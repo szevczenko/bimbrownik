@@ -95,7 +95,8 @@
             "lwjson.h": "c",
             "stdint.h": "c",
             "socket.h": "c",
-            "app_config.h": "c"
+            "app_config.h": "c",
+            "random": "c"
         },
         "cSpell.words": [
             "Dmytro",

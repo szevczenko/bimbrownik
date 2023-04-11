@@ -52,11 +52,6 @@ int verify_config( config_t* conf )
   return 0;
 }
 
-static void configInitStruct( config_t* con )
-{
-
-}
-
 void configInit( void )
 {
   mutexSemaphore = xSemaphoreCreateBinary();

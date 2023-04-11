@@ -20,6 +20,8 @@
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
 #include "esp_wps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "netif/ethernet.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -45,6 +47,11 @@
     return WIFI_ERR_FAIL;         \
   }
 
+#ifndef PIN2STR
+#define PIN2STR( a ) ( a )[0], ( a )[1], ( a )[2], ( a )[3], ( a )[4], ( a )[5], ( a )[6], ( a )[7]
+#define PINSTR       "%c%c%c%c%c%c%c%c"
+#endif
+
 /* Private types -------------------------------------------------------------*/
 typedef struct
 {
@@ -55,6 +62,8 @@ typedef struct
   wifi_config_t wifi_config;
   wifiConData_t wifi_con_data;
   esp_netif_t* netif;
+  SemaphoreHandle_t wps_wait;
+  wifi_err_t wps_result;
   int rssi;
 } wifi_ctx_t;
 
@@ -116,66 +125,47 @@ static void _got_ip_event_cb( void* arg, esp_event_base_t event_base, int32_t ev
   }
 }
 
-// static void _wps_event_handler( void* arg, esp_event_base_t event_base,
-//                                 int32_t event_id, void* event_data )
-// {
-//   static int ap_idx = 1;
+static void _wps_event_handler( void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data )
+{
+  switch ( event_id )
+  {
+    case WIFI_EVENT_STA_WPS_ER_SUCCESS:
+      LOG( PRINT_DEBUG, "WIFI_EVENT_STA_WPS_ER_SUCCESS" );
+      {
+        wifi_event_sta_wps_er_success_t* evt = (wifi_event_sta_wps_er_success_t*) event_data;
 
-//   switch ( event_id )
-//   {
-//     case WIFI_EVENT_STA_WPS_ER_SUCCESS:
-//       // ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_SUCCESS" );
-//       {
-//         wifi_event_sta_wps_er_success_t* evt =
-//           (wifi_event_sta_wps_er_success_t*) event_data;
-//         int i;
-
-//         if ( evt )
-//         {
-//           s_ap_creds_num = evt->ap_cred_cnt;
-//           for ( i = 0; i < s_ap_creds_num; i++ )
-//           {
-//             memcpy( wps_ap_creds[i].sta.ssid, evt->ap_cred[i].ssid,
-//                     sizeof( evt->ap_cred[i].ssid ) );
-//             memcpy( wps_ap_creds[i].sta.password, evt->ap_cred[i].passphrase,
-//                     sizeof( evt->ap_cred[i].passphrase ) );
-//           }
-//           /* If multiple AP credentials are received from WPS, connect with first one */
-//           // ESP_LOGI( TAG, "Connecting to SSID: %s, Passphrase: %s",
-//           //           wps_ap_creds[0].sta.ssid, wps_ap_creds[0].sta.password );
-//           ESP_ERROR_CHECK( esp_wifi_set_config( WIFI_IF_STA, &wps_ap_creds[0] ) );
-//         }
-//        /*
-//         * If only one AP credential is received from WPS, there will be no event data and
-//         * esp_wifi_set_config() is already called by WPS modules for backward compatibility
-//         * with legacy apps. So directly attempt connection here.
-//         */
-//         ESP_ERROR_CHECK( esp_wifi_wps_disable() );
-//         esp_wifi_connect();
-//       }
-//       break;
-//     case WIFI_EVENT_STA_WPS_ER_FAILED:
-//       // ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_FAILED" );
-//       ESP_ERROR_CHECK( esp_wifi_wps_disable() );
-//       ESP_ERROR_CHECK( esp_wifi_wps_enable( &config ) );
-//       ESP_ERROR_CHECK( esp_wifi_wps_start( 0 ) );
-//       break;
-//     case WIFI_EVENT_STA_WPS_ER_TIMEOUT:
-//       // ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_TIMEOUT" );
-//       ESP_ERROR_CHECK( esp_wifi_wps_disable() );
-//       ESP_ERROR_CHECK( esp_wifi_wps_enable( &config ) );
-//       ESP_ERROR_CHECK( esp_wifi_wps_start( 0 ) );
-//       break;
-//     case WIFI_EVENT_STA_WPS_ER_PIN:
-//       // ESP_LOGI( TAG, "WIFI_EVENT_STA_WPS_ER_PIN" );
-//       /* display the PIN code */
-//       wifi_event_sta_wps_er_pin_t* event = (wifi_event_sta_wps_er_pin_t*) event_data;
-//       // ESP_LOGI( TAG, "WPS_PIN = " PINSTR, PIN2STR( event->pin_code ) );
-//       break;
-//     default:
-//       break;
-//   }
-// }
+        if ( evt )
+        {
+          /* ToDo delete this assert*/
+          assert( evt->ap_cred_cnt == 1 );
+          memcpy( ctx.wifi_config.sta.ssid, evt->ap_cred[0].ssid, sizeof( evt->ap_cred[0].ssid ) );
+          memcpy( ctx.wifi_config.sta.password, evt->ap_cred[0].passphrase, sizeof( evt->ap_cred[0].passphrase ) );
+          ESP_ERROR_CHECK( esp_wifi_set_config( WIFI_IF_STA, &ctx.wifi_config ) );
+        }
+        esp_wifi_get_config(WIFI_IF_STA, &ctx.wifi_config);
+        xSemaphoreGive( ctx.wps_wait );
+        ctx.wps_result = WIFI_ERR_OK;
+      }
+      break;
+    case WIFI_EVENT_STA_WPS_ER_FAILED:
+      LOG( PRINT_DEBUG, "WIFI_EVENT_STA_WPS_ER_FAILED" );
+      xSemaphoreGive( ctx.wps_wait );
+      break;
+    case WIFI_EVENT_STA_WPS_ER_TIMEOUT:
+      LOG( PRINT_DEBUG, "WIFI_EVENT_STA_WPS_ER_TIMEOUT" );
+      xSemaphoreGive( ctx.wps_wait );
+      break;
+    case WIFI_EVENT_STA_WPS_ER_PIN:
+      LOG( PRINT_DEBUG, "WIFI_EVENT_STA_WPS_ER_PIN" );
+      /* display the PIN code */
+      wifi_event_sta_wps_er_pin_t* event = (wifi_event_sta_wps_er_pin_t*) event_data;
+      LOG( PRINT_DEBUG, "WPS_PIN = " PINSTR, PIN2STR( event->pin_code ) );
+      xSemaphoreGive( ctx.wps_wait );
+      break;
+    default:
+      break;
+  }
+}
 
 static void _debug_cb( void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data )
 {
@@ -281,6 +271,7 @@ static void _print_cipher_type( int pairwise_cipher, int group_cipher )
 wifi_err_t WiFiInitAccessPoint( const char* name )
 {
   /* Nadawanie nazwy WiFi Access point oraz przypisanie do niego mac adresu */
+  nvs_flash_init();
   uint8_t mac[6];
   esp_efuse_mac_get_default( mac );
   strcpy( (char*) wifi_config_ap.ap.ssid, name );
@@ -320,6 +311,9 @@ wifi_err_t WiFiInitAccessPoint( const char* name )
 
 wifi_err_t WiFiInitSTA( void )
 {
+  nvs_flash_init();
+  vSemaphoreCreateBinary( ctx.wps_wait );
+  assert( ctx.wps_wait );
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ctx.wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
   ctx.wifi_config.sta.pmf_cfg.capable = true;
@@ -339,13 +333,14 @@ wifi_err_t WiFiInitSTA( void )
   WIFI_ERROR_CHECK( esp_wifi_init( &cfg ) );
   WIFI_ERROR_CHECK( esp_wifi_set_config( WIFI_IF_STA, &ctx.wifi_config ) );
   WIFI_ERROR_CHECK( esp_wifi_set_mode( WIFI_MODE_STA ) );
-  WIFI_ERROR_CHECK( esp_wifi_start() );
-  WIFI_ERROR_CHECK( esp_wifi_set_vendor_ie_cb( _wifi_read_info_cb, NULL ) );
   WIFI_ERROR_CHECK( esp_event_handler_register( WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &_on_wifi_disconnect_cb, NULL ) );
   WIFI_ERROR_CHECK( esp_event_handler_register( WIFI_EVENT, WIFI_EVENT_SCAN_DONE, &_wifi_scan_done_cb, NULL ) );
   WIFI_ERROR_CHECK( esp_event_handler_register( IP_EVENT, IP_EVENT_STA_GOT_IP, &_got_ip_event_cb, NULL ) );
   WIFI_ERROR_CHECK( esp_event_handler_register( WIFI_EVENT, WIFI_EVENT_MASK_ALL, &_debug_cb, NULL ) );
   WIFI_ERROR_CHECK( esp_event_handler_register( IP_EVENT, WIFI_EVENT_MASK_ALL, &_debug_cb, NULL ) );
+  WIFI_ERROR_CHECK( esp_event_handler_register( WIFI_EVENT, WIFI_EVENT_MASK_ALL, &_wps_event_handler, NULL ) );
+  WIFI_ERROR_CHECK( esp_wifi_start() );
+  WIFI_ERROR_CHECK( esp_wifi_set_vendor_ie_cb( _wifi_read_info_cb, NULL ) );
   return WIFI_ERR_OK;
 }
 
@@ -505,8 +500,12 @@ wifi_err_t WiFiWPSStart( uint32_t time_ms )
 {
   esp_wps_config_t config = WPS_CONFIG_INIT_DEFAULT( WPS_TYPE_PBC );
   WIFI_ERROR_CHECK( esp_wifi_wps_enable( &config ) );
-  WIFI_ERROR_CHECK( esp_wifi_wps_start( time_ms ) );
-  return WIFI_ERR_OK;
+  xQueueReset( ctx.wps_wait );
+  ctx.wps_result = WIFI_ERR_FAIL;
+  WIFI_ERROR_CHECK( esp_wifi_wps_start( 0 ));
+  xSemaphoreTake( ctx.wps_wait, pdMS_TO_TICKS( time_ms ) );
+  esp_wifi_wps_disable();
+  return ctx.wps_result;
 }
 
 wifi_err_t WiFiWPSStop( void )

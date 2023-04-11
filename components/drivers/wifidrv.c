@@ -10,9 +10,9 @@
 
 #include "wifidrv.h"
 
+#include "app_config.h"
 #include "app_events.h"
 #include "app_timers.h"
-#include "app_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
@@ -96,6 +96,8 @@ static void _state_connecting_event_connect_req( const app_event_t* event );
 static void _state_connecting_event_timeout_connect( const app_event_t* event );
 static void _state_connecting_connect_res( const app_event_t* event );
 
+static void _state_wps_event_wps_req( const app_event_t* event );
+
 static void _state_working_event_update_wifi_info( const app_event_t* event );
 static void _state_working_event_disconnect_req( const app_event_t* event );
 static void _state_working_event_disconnect_res( const app_event_t* event );
@@ -124,6 +126,7 @@ static const struct app_events_handler _wifi_wps_state_handler_array[] =
   {
     EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
     EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
+    EVENT_ITEM( MSG_ID_WIFI_WPS_REQ, _state_wps_event_wps_req ),
 };
 
 static const struct app_events_handler _wifi_connecting_state_handler_array[] =
@@ -237,10 +240,15 @@ static void _state_idle_event_wps_req( const app_event_t* event )
   _send_internal_event( MSG_ID_WIFI_WPS_REQ, NULL, 0 );
 }
 
+static void _state_wps_event_wps_req( const app_event_t* event )
+{
+  WiFiWPSStart( 30000 );
+}
+
 static void _state_connecting_event_connect_req( const app_event_t* event )
 {
   wifi_err_t ret = WiFiConnect( ctx.wifi_con_data.ssid, ctx.wifi_con_data.password );
-  if (ret == WIFI_ERR_OK)
+  if ( ret == WIFI_ERR_OK )
   {
     bool result = true;
     _send_internal_event( MSG_ID_WIFI_CONNECT_RES, &result, sizeof( result ) );

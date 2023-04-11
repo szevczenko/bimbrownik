@@ -20,6 +20,7 @@
   MSG( APP_MANAGER_INIT_RES )                     \
   MSG( APP_MANAGER_TIMEOUT_INIT )                 \
   MSG( APP_MANAGER_TEMP_SENSORS_SCAN_RES )        \
+  MSG( APP_MANAGER_TEMP_WPS_TEST )                \
                                                   \
   /* Network manager ids */                       \
   MSG( NETWORK_MANAGER_TIMEOUT_INIT )             \
@@ -27,6 +28,8 @@
   MSG( NETWORK_MANAGER_TCP_SERVER_CLIENT_STATUS ) \
   MSG( NETWORK_MANAGER_WIFI_CONNECT_REQ )         \
   MSG( NETWORK_MANAGER_WIFI_CONNECT_RES )         \
+  MSG( NETWORK_MANAGER_WPS_CONNECT_REQ )          \
+  MSG( NETWORK_MANAGER_WPS_CONNECT_RES )          \
                                                   \
   /* Wifi msg ids */                              \
   MSG( WIFI_CONNECT_REQ )                         \

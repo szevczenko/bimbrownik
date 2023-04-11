@@ -221,7 +221,6 @@ static void _state_common_event_deinit_request( const app_event_t* event )
 static void _state_init_event_init_request( const app_event_t* event )
 {
   temp_drv_err_t err = TEMP_DRV_ERR_OK;
-  app_event_t response = {};
   if ( owOK != ow_init( &ctx.ow, &ow_ll_drv_esp32, NULL ) )
   {
     err = TEMP_DRV_ERR_FAIL;

@@ -10,10 +10,10 @@
 
 #include "network_manager.h"
 
+#include "app_config.h"
 #include "app_events.h"
 #include "app_manager.h"
 #include "app_timers.h"
-#include "app_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
@@ -79,8 +79,11 @@ static void _state_init_event_init_request( const app_event_t* event );
 static void _state_init_event_init_response( const app_event_t* event );
 static void _state_init_event_init_module_response( const app_event_t* event );
 static void _state_init_event_timeout_init( const app_event_t* event );
-static void _state_init_event_wifi_connect_req( const app_event_t* event );
-static void _state_init_event_wifi_connect_res( const app_event_t* event );
+
+static void _state_idle_event_wifi_connect_req( const app_event_t* event );
+static void _state_idle_event_wifi_connect_res( const app_event_t* event );
+static void _state_idle_event_wifi_wps_req( const app_event_t* event );
+static void _state_idle_event_wifi_wps_res( const app_event_t* event );
 
 /* Status callbacks declaration. ---------------------------------------------*/
 static const struct app_events_handler _disabled_state_handler_array[] =
@@ -93,14 +96,16 @@ static const struct app_events_handler _init_state_handler_array[] =
     EVENT_ITEM( MSG_ID_INIT_REQ, _state_init_event_init_request ),
     EVENT_ITEM( MSG_ID_NETWORK_MANAGER_INIT_RES, _state_init_event_init_response ),
     EVENT_ITEM( MSG_ID_NETWORK_MANAGER_TIMEOUT_INIT, _state_init_event_timeout_init ),
-    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_REQ, _state_init_event_timeout_init ),
-    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_RES, _state_init_event_timeout_init ),
     EVENT_ITEM( MSG_ID_INIT_RES, _state_init_event_init_module_response ),
 };
 
 static const struct app_events_handler _idle_state_handler_array[] =
   {
     EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
+    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_REQ, _state_idle_event_wifi_connect_req ),
+    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_RES, _state_idle_event_wifi_connect_res ),
+    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WPS_CONNECT_REQ, _state_idle_event_wifi_wps_req ),
+    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WPS_CONNECT_RES, _state_idle_event_wifi_wps_res ),
 };
 
 struct state_context
@@ -241,7 +246,7 @@ static void _state_init_event_init_module_response( const app_event_t* event )
       ctx.wifi_is_read_connecting_data = false;
     }
   }
-  else if (event->src == APP_EVENT_TCP_SERVER)
+  else if ( event->src == APP_EVENT_TCP_SERVER )
   {
     ctx.modules_init++;
   }
@@ -255,6 +260,25 @@ static void _state_init_event_init_module_response( const app_event_t* event )
 static void _state_init_event_timeout_init( const app_event_t* event )
 {
   _send_internal_event( MSG_ID_NETWORK_MANAGER_INIT_RES, NULL, 0 );
+}
+
+static void _state_idle_event_wifi_connect_req( const app_event_t* event )
+{
+}
+
+static void _state_idle_event_wifi_connect_res( const app_event_t* event )
+{
+}
+
+static void _state_idle_event_wifi_wps_req( const app_event_t* event )
+{
+  app_event_t event_send = { 0 };
+  AppEventPrepareNoData( &event_send, MSG_ID_WIFI_WPS_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_WIFI_DRV );
+  WifiDrvPostMsg( &event_send );
+}
+
+static void _state_idle_event_wifi_wps_res( const app_event_t* event )
+{
 }
 
 static void _task( void* pv )
