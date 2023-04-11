@@ -9,7 +9,7 @@ Please refer to LICENSE file for licensing information.
 
 #include "pcf8574.h"
 
-#include "config.h"
+#include "app_config.h"
 #include "driver/i2c.h"
 
 #undef LOG

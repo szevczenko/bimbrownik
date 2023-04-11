@@ -91,7 +91,11 @@
             "esp_freertos_hooks.h": "c",
             "lvgl_helpers.h": "c",
             "lv_hal.h": "c",
-            "esp_log.h": "c"
+            "esp_log.h": "c",
+            "lwjson.h": "c",
+            "stdint.h": "c",
+            "socket.h": "c",
+            "app_config.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

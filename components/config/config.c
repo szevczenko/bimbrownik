@@ -1,4 +1,4 @@
-#include "config.h"
+#include "app_config.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -31,8 +31,6 @@ config_t config =
     .end_config = END_CONFIG };
 
 static xSemaphoreHandle mutexSemaphore;
-
-uint8_t test_config_save( void );
 
 void config_printf( enum config_print_lvl module_lvl, enum config_print_lvl msg_lvl, const char* format, ... )
 {

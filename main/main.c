@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "app_config.h"
 #include "app_events.h"
 #include "app_manager.h"
 #include "freertos/FreeRTOS.h"
@@ -9,6 +10,7 @@
 #include "screen.h"
 #include "wifidrv.h"
 #include "temperature.h"
+#include "tcp_server.h"
 
 #include "ow_esp32.h"
 #include "ow/ow.h"
@@ -22,6 +24,7 @@ void app_main( void )
   NetworkManagerInit();
   AppManagerInit();
   TemperatureInit();
+  TCPServer_Init();
   // screenInit();
 
   // ow_init( &ow, &ow_ll_drv_esp32, NULL ); /* Initialize 1-Wire library and set user argument to NULL */

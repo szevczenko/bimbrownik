@@ -15,7 +15,6 @@
 
 #include "app_events.h"
 #include "app_msg_id.h"
-#include "config.h"
 #include "network_manager.h"
 #include "temperature.h"
 

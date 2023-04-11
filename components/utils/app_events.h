@@ -19,6 +19,7 @@
   EVENT_TASK( APP_MANAGER )     \
   EVENT_TASK( NETWORK_MANAGER ) \
   EVENT_TASK( WIFI_DRV )        \
+  EVENT_TASK( TCP_SERVER )      \
   EVENT_TASK( TEMP_DRV )
 
 /* Public macro --------------------------------------------------------------*/

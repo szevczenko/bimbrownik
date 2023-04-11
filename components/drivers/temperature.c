@@ -13,7 +13,7 @@
 #include "app_events.h"
 #include "app_manager.h"
 #include "app_timers.h"
-#include "config.h"
+#include "app_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"

@@ -13,11 +13,12 @@
 #include "app_events.h"
 #include "app_manager.h"
 #include "app_timers.h"
-#include "config.h"
+#include "app_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "tcp_server.h"
 #include "wifidrv.h"
 
 /* Private macros ------------------------------------------------------------*/
@@ -177,6 +178,10 @@ static void _state_init_event_init_request( const app_event_t* event )
   AppEventPrepareNoData( &event_send, MSG_ID_INIT_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_WIFI_DRV );
   WifiDrvPostMsg( &event_send );
 
+  /* TCPServer */
+  AppEventPrepareNoData( &event_send, MSG_ID_INIT_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+  TCPServer_PostMsg( &event_send );
+
   AppTimerStart( timers, TIMER_ID_TIMEOUT_INIT );
 }
 
@@ -236,8 +241,12 @@ static void _state_init_event_init_module_response( const app_event_t* event )
       ctx.wifi_is_read_connecting_data = false;
     }
   }
+  else if (event->src == APP_EVENT_TCP_SERVER)
+  {
+    ctx.modules_init++;
+  }
 
-  if ( ctx.modules_init == 1 )
+  if ( ctx.modules_init == 2 )
   {
     _send_internal_event( MSG_ID_NETWORK_MANAGER_INIT_RES, NULL, 0 );
   }

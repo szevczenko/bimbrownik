@@ -1,40 +1,31 @@
 /**
  *******************************************************************************
- * @file    network_manager.h
+ * @file    json_parser.h
  * @author  Dmytro Shevchenko
- * @brief   Network manager module header file
+ * @brief   JSON parser
  *******************************************************************************
  */
 
 /* Define to prevent recursive inclusion ------------------------------------*/
 
-#ifndef _NETWORK_MANAGER_H
-#define _NETWORK_MANAGER_H
+#ifndef _JSON_PARSER_H_
+#define _JSON_PARSER_H_
 
 #include <stdbool.h>
-
-#include "app_events.h"
 
 /* Public macro --------------------------------------------------------------*/
 
 /* Public types --------------------------------------------------------------*/
-typedef enum
+typedef void ( *method_cb )( void );
+
+typedef struct
 {
-    NETWORK_MANAGER_ERR_OK,
-    NETWORK_MANAGER_ERR_TIMEOUT,
-    NETWORK_MANAGER_FAIL_OPERATION
-}network_manager_err_t;
+  const char *name;
+  method_cb cb;
+} json_parse_token_t;
 
 /* Public functions ----------------------------------------------------------*/
 
-/**
- * @brief   Init network manager.
- */
-void NetworkManagerInit( void );
-
-/**
- * @brief   Sends event to network manager.
- */
-void NetworkManagerPostMsg( app_event_t* event );
+void JSONParse( const char* json_string );
 
 #endif

@@ -26,16 +26,20 @@
 #include "lvgl/lvgl.h"
 #endif
 
-#include "lvgl_helpers.h"
-#include "lvgl_spi_conf.h"
-#include "lvgl_tft/disp_spi.h"
-#include "lvgl_touch/tp_spi.h"
+// #include "lvgl_helpers.h"
+// #include "lvgl_spi_conf.h"
+// #include "lvgl_tft/disp_spi.h"
+// #include "lvgl_touch/tp_spi.h"
 #include "ui.h"
 
 /*********************
  *      DEFINES
  *********************/
 #define LV_TICK_PERIOD_MS 1
+
+#ifndef DISP_BUF_SIZE
+#define DISP_BUF_SIZE 1024
+#endif
 
 /**********************
  *  STATIC PROTOTYPES
@@ -66,11 +70,11 @@ static void guiTask( void* pvParameter )
   xGuiSemaphore = xSemaphoreCreateMutex();
 
   lv_init();
-  lvgl_driver_init();
+  // lvgl_driver_init();
   lv_disp_draw_buf_init( &disp_buf, buf1, buf2, DISP_BUF_SIZE );
 
   lv_disp_drv_init( &disp_drv );
-  disp_drv.flush_cb = disp_driver_flush;
+  // disp_drv.flush_cb = disp_driver_flush;
   disp_drv.hor_res = 320;
   disp_drv.ver_res = 480;
   disp_drv.draw_buf = &disp_buf;

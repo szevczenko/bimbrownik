@@ -1,15 +1,9 @@
 [submodule "components/lvgl"]
 	path = components/lvgl
 	url = https://github.com/lvgl/lvgl.git
-[submodule "components/lvgl_esp32_drivers"]
-	path = components/lvgl_esp32_drivers
-	url = https://github.com/lvgl/lvgl_esp32_drivers.git
 [submodule "lib/Unity"]
 	path = lib/Unity
 	url = https://github.com/ThrowTheSwitch/Unity.git
-[submodule "components/lftpd"]
-	path = components/lftpd
-	url = https://github.com/vonnieda/lftpd.git
 [submodule "lib/lwip"]
 	path = lib/lwip
 	url = https://github.com/lwip-tcpip/lwip.git

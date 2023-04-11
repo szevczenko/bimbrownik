@@ -97,25 +97,23 @@ PROJECT_SRC := $(wildcard $(PROJECT_DIR)/application/*.c) \
 								$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/devices/*.c) \
 								$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/ow/*.c) \
 								$(wildcard $(PROJECT_DIR)/utils/*.c) \
-								$(wildcard $(PROJECT_DIR)/lftpd/*.c) \
+								$(wildcard $(PROJECT_DIR)/utils/lwjson/*.c) \
 
 PROJECT_INCLUDES :=	$(wildcard $(PROJECT_DIR)/application/*.h) \
 										$(wildcard $(PROJECT_DIR)/config/*.h) \
 										$(wildcard $(PROJECT_DIR)/drivers/*.h) \
 										$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/include/*.h) \
 										$(wildcard $(PROJECT_DIR)/utils/*.h) \
+										$(wildcard $(PROJECT_DIR)/utils/lwjson/*.h) \
 										$(wildcard $(PROJECT_DIR)/project_hal/*.h) \
-										$(wildcard $(PROJECT_DIR)/lftpd/include*.h) \
-										$(wildcard $(PROJECT_DIR)/lftpd/*.h) \
 
 PROJECT_INCLUDES_DIRS := -I $(PROJECT_DIR)/application \
 						 							-I $(PROJECT_DIR)/config \
 													 -I $(PROJECT_DIR)/drivers \
 													 -I $(PROJECT_DIR)/drivers/onewire_uart/src/include \
 													 -I $(PROJECT_DIR)/utils \
+													 -I $(PROJECT_DIR)/utils/lwjson \
 													 -I $(PROJECT_DIR)/project_hal \
-													 -I $(PROJECT_DIR)/lftpd/include \
-													 -I $(PROJECT_DIR)/lftpd \
 
 PROJECT_SOURCES_NAMES := $(notdir $(PROJECT_SRC))
 PROJECT_OBJS := $(PROJECT_SOURCES_NAMES:%.c=$(PROJECT_BUILD_DIR)/%.o)

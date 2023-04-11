@@ -13,7 +13,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#include "config.h"
+#include "app_config.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[AppTimer] "

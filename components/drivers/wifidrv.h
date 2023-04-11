@@ -13,7 +13,6 @@
 
 #include <stdbool.h>
 
-#include "config.h"
 #include "app_events.h"
 #include "wifi.h"
 
