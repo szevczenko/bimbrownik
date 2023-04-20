@@ -264,10 +264,27 @@ static void _state_init_event_timeout_init( const app_event_t* event )
 
 static void _state_idle_event_wifi_connect_req( const app_event_t* event )
 {
+  app_event_t event_send = { 0 };
+  AppEventPrepareNoData( &event_send, MSG_ID_WIFI_CONNECT_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_WIFI_DRV );
+  WifiDrvPostMsg( &event_send );
 }
 
 static void _state_idle_event_wifi_connect_res( const app_event_t* event )
 {
+  wifi_drv_err_t err = 0;
+  if ( AppEventGetData( event, &err, sizeof( err ) ) == false )
+  {
+    LOG( PRINT_ERROR, "%s Cannot get data from event", __func__ );
+    _change_state( DISABLED );
+    return;
+  }
+
+  if ( err == WIFI_ERR_OK )
+  {
+    app_event_t event_send = { 0 };
+    AppEventPrepareNoData( &event_send, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+    TCPServer_PostMsg( &event_send );
+  }
 }
 
 static void _state_idle_event_wifi_wps_req( const app_event_t* event )

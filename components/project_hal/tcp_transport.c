@@ -15,6 +15,8 @@
 #include <string.h>
 #include <sys/select.h>
 
+#include "app_config.h"
+
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[TCP] "
 #define DEBUG_LVL   PRINT_INFO

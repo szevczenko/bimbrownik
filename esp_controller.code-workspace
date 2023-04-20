@@ -13,6 +13,7 @@
             "IDF_PATH": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3",
             "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3;C:\\cygwin64\\bin",
             "OPENOCD_SCRIPTS": "${workspaceFolder}/../esp_tools/tools/openocd-esp32/v0.11.0-esp32-20220706/openocd-esp32/share/openocd/scripts",
+            "CHERE_INVOKING": "1"
         },
         "terminal.integrated.profiles.windows": {
             "esp_idf": {

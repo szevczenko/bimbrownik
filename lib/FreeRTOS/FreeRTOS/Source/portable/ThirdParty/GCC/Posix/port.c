@@ -367,12 +367,12 @@ void prvSetupTimerInterrupt( void )
     }
 
     /* Set the interval between timer events. */
-    itimer.it_interval.tv_sec = 0;
-    itimer.it_interval.tv_usec = portTICK_RATE_MICROSECONDS;
+    itimer.it_interval.tv_sec = 1;
+    itimer.it_interval.tv_usec = 0;
 
     /* Set the current count-down. */
-    itimer.it_value.tv_sec = 0;
-    itimer.it_value.tv_usec = portTICK_RATE_MICROSECONDS;
+    itimer.it_value.tv_sec = 1;
+    itimer.it_value.tv_usec = 0;
 
     /* Set-up the timer interrupt. */
     iRet = setitimer( ITIMER_REAL, &itimer, NULL );

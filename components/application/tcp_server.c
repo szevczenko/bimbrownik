@@ -21,7 +21,7 @@
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[CMD Srv] "
-#define DEBUG_LVL   PRINT_WARNING
+#define DEBUG_LVL   PRINT_DEBUG
 
 #if CONFIG_DEBUG_TCP_SERVER
 #define LOG( _lvl, ... ) \
@@ -271,24 +271,25 @@ static void _state_idle_event_prepare_socket( const app_event_t* event )
 
 static void _state_wait_connecting_event_wait_connection( const app_event_t* event )
 {
+  int ret = 0;
   if ( ctx.ethernet_is_connected == false )
   {
     _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
     return;
   }
 
-  int ret = TCPTransport_Select( ctx.server_socket, 1000 );
+  // ret = TCPTransport_Select( ctx.server_socket, 1000 );
 
-  if ( ret < 0 )
-  {
-    _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
-    return;
-  }
-  else if ( ret == 0 )
-  {
-    _send_internal_event( MSG_ID_TCP_SERVER_WAIT_CONNECTION, NULL, 0 );
-    return;
-  }
+  // if ( ret < 0 )
+  // {
+  //   _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
+  //   return;
+  // }
+  // else if ( ret == 0 )
+  // {
+  //   _send_internal_event( MSG_ID_TCP_SERVER_WAIT_CONNECTION, NULL, 0 );
+  //   return;
+  // }
 
   ret = TCPTransport_Accept( ctx.server_socket );
   if ( ret < 0 )

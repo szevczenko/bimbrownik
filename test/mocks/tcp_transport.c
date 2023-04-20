@@ -8,27 +8,30 @@
 
 #include "tcp_transport.h"
 
+#include <arpa/inet.h>
 #include <errno.h>
+#include <netinet/in.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <sys/types.h>
+
+#include "app_config.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[TCP] "
 #define DEBUG_LVL   PRINT_INFO
 
-#if CONFIG_DEBUG_TCP_CLIENT
+#if CONFIG_DEBUG_TCP_TRANSPORT
 #define LOG( _lvl, ... ) \
   debug_printf( DEBUG_LVL, _lvl, MODULE_NAME __VA_ARGS__ )
 #else
 #define LOG( PRINT_INFO, ... )
 #endif
 
-#define PORT 1234
+#define PORT 80
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -47,9 +50,9 @@ int TCPTransport_Bind( int socket )
   struct sockaddr_in servAddr;
   int optval = 1;
   servAddr.sin_family = AF_INET;
-  servAddr.sin_addr.s_addr = htonl( INADDR_ANY );
+  servAddr.sin_addr.s_addr = INADDR_ANY;
   servAddr.sin_port = htons( PORT );
-  setsockopt( socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof( int ) );
+  // setsockopt( socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &optval, sizeof( int ) );
   int rc = bind( socket, (struct sockaddr*) &servAddr, sizeof( struct sockaddr ) );
   if ( rc < 0 )
   {
@@ -60,7 +63,7 @@ int TCPTransport_Bind( int socket )
 
 int TCPTransport_Listen( int socket )
 {
-  int rc = listen( socket, 5 );
+  int rc = listen( socket, 3 );
   if ( rc < 0 )
   {
     LOG( PRINT_ERROR, "Listen error: %d (%s)", errno, strerror( errno ) );
@@ -75,12 +78,31 @@ int TCPTransport_Select( int socket, uint32_t timeout_ms )
 
   FD_ZERO( &set );
   FD_SET( socket, &set );
-  struct timeval timeout_time = {};
-  timeout_time.tv_sec = timeout_ms / 1000;
-  timeout_time.tv_usec = ( timeout_ms % 1000 ) * 1000;
-  rc = select( socket + 1, &set, NULL, NULL, &timeout_time );
+  uint32_t time_wait = 0;
+  while ( rc >= 0 )
+  {
+    int count = 0;
+    rc = ioctl( socket, FIONREAD, &count );
+    LOG( PRINT_INFO, "Rc %d count: %d", rc, count );
+    if ( count > 0 )
+    {
+      rc = count;
+      break;
+    }
+    vTaskDelay( MS2ST( 5 ) );
+    time_wait += 10;
+    if ( time_wait > timeout_ms )
+    {
+      break;
+    }
+  }
+
   if ( rc < 0 )
   {
+    if ( errno == EINTR )
+    {
+      rc = 0;
+    }
     LOG( PRINT_ERROR, "Select error: %d (%s)", errno, strerror( errno ) );
   }
   return rc;
@@ -93,7 +115,9 @@ int TCPTransport_Accept( int socket )
   servAddr.sin_addr.s_addr = htonl( INADDR_ANY );
   servAddr.sin_port = htons( PORT );
   socklen_t len = sizeof( servAddr );
-  int rc = accept( socket, (struct sockaddr*) &servAddr, &len );
+  int rc = 0;
+  while ( ( rc = accept( socket, (struct sockaddr*) &servAddr, &len ) ) == -1 && errno == EINTR )
+    continue;
   if ( rc < 0 )
   {
     LOG( PRINT_ERROR, "Accept error: %d (%s)", errno, strerror( errno ) );
