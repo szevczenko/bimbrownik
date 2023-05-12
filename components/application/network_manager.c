@@ -279,7 +279,7 @@ static void _state_idle_event_wifi_connect_res( const app_event_t* event )
     return;
   }
 
-  if ( err == WIFI_ERR_OK )
+  if ( err == WIFI_DRV_ERR_OK )
   {
     app_event_t event_send = { 0 };
     AppEventPrepareNoData( &event_send, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );

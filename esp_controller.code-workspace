@@ -97,7 +97,8 @@
             "stdint.h": "c",
             "socket.h": "c",
             "app_config.h": "c",
-            "random": "c"
+            "random": "c",
+            "wifidrv.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

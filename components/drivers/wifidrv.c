@@ -242,7 +242,17 @@ static void _state_idle_event_wps_req( const app_event_t* event )
 
 static void _state_wps_event_wps_req( const app_event_t* event )
 {
-  WiFiWPSStart( 30000 );
+  wifi_err_t ret = WiFiWPSStart( 30000 );
+  if ( ret == WIFI_ERR_OK )
+  {
+    bool result = true;
+    _change_state( CONNECTING );
+    _send_internal_event( MSG_ID_WIFI_CONNECT_REQ, &result, sizeof( result ) );
+  }
+  else
+  {
+    _change_state( CONNECTING );
+  }
 }
 
 static void _state_connecting_event_connect_req( const app_event_t* event )

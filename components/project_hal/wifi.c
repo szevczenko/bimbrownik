@@ -29,7 +29,7 @@
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[WiFiHal] "
-#define DEBUG_LVL   PRINT_INFO
+#define DEBUG_LVL   PRINT_DEBUG
 
 #if CONFIG_DEBUG_WIFI
 #define LOG( _lvl, ... ) \
