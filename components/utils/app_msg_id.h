@@ -26,25 +26,9 @@
   MSG( NETWORK_MANAGER_TIMEOUT_INIT )             \
   MSG( NETWORK_MANAGER_INIT_RES )                 \
   MSG( NETWORK_MANAGER_TCP_SERVER_CLIENT_STATUS ) \
-  MSG( NETWORK_MANAGER_WIFI_CONNECT_REQ )         \
   MSG( NETWORK_MANAGER_WIFI_CONNECT_RES )         \
-  MSG( NETWORK_MANAGER_WPS_CONNECT_REQ )          \
-  MSG( NETWORK_MANAGER_WPS_CONNECT_RES )          \
-                                                  \
-  /* Wifi msg ids */                              \
-  MSG( WIFI_CONNECT_REQ )                         \
-  MSG( WIFI_CONNECT_RES )                         \
-  MSG( WIFI_DISCONNECT_REQ )                      \
-  MSG( WIFI_DISCONNECT_RES )                      \
-  MSG( WIFI_WPS_REQ )                             \
-  MSG( WIFI_WPS_RES )                             \
-  MSG( WIFI_WPS_STOP )                            \
-  MSG( WIFI_SCAN_REQ )                            \
-  MSG( WIFI_SCAN_RES )                            \
                                                   \
   /* Wifi internal msg ids */                     \
-  MSG( WIFI_SCAN_STOP )                           \
-  MSG( WIFI_TIMEOUT_CONNECT )                     \
   MSG( WIFI_UPDATE_WIFI_INFO )                    \
                                                   \
   /* Temperature msg ids */                       \

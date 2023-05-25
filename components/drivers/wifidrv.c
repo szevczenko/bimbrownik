@@ -19,6 +19,7 @@
 #include "freertos/task.h"
 #include "network_manager.h"
 #include "wifi.h"
+#include "wifi_manager.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[WiFi] "
@@ -36,13 +37,9 @@
 /* Private types -------------------------------------------------------------*/
 
 /** @brief  Array with defined states */
-#define STATE_HANDLER_ARRAY                                 \
-  STATE( DISABLED, _wifi_disabled_state_handler_array )     \
-  STATE( IDLE, _wifi_idle_state_handler_array )             \
-  STATE( SCANNING, _wifi_scanning_state_handler_array )     \
-  STATE( WPS, _wifi_wps_state_handler_array )               \
-  STATE( CONNECTING, _wifi_connecting_state_handler_array ) \
-  STATE( WORKING, _wifi_working_state_handler_array )
+#define STATE_HANDLER_ARRAY                             \
+  STATE( DISABLED, _wifi_disabled_state_handler_array ) \
+  STATE( IDLE, _wifi_idle_state_handler_array )
 
 /** @brief  Private types */
 typedef enum
@@ -89,18 +86,7 @@ static void _state_common_event_deinit_request( const app_event_t* event );
 
 static void _state_disabled_event_init_request( const app_event_t* event );
 
-static void _state_idle_event_connect_req( const app_event_t* event );
-static void _state_idle_event_wps_req( const app_event_t* event );
-
-static void _state_connecting_event_connect_req( const app_event_t* event );
-static void _state_connecting_event_timeout_connect( const app_event_t* event );
-static void _state_connecting_connect_res( const app_event_t* event );
-
-static void _state_wps_event_wps_req( const app_event_t* event );
-
-static void _state_working_event_update_wifi_info( const app_event_t* event );
-static void _state_working_event_disconnect_req( const app_event_t* event );
-static void _state_working_event_disconnect_res( const app_event_t* event );
+static void _state_idle_event_update_wifi_info( const app_event_t* event );
 
 /* Status callbacks declaration. ---------------------------------------------*/
 static const struct app_events_handler _wifi_disabled_state_handler_array[] =
@@ -110,38 +96,7 @@ static const struct app_events_handler _wifi_disabled_state_handler_array[] =
 
 static const struct app_events_handler _wifi_idle_state_handler_array[] =
   {
-    EVENT_ITEM( MSG_ID_WIFI_CONNECT_REQ, _state_idle_event_connect_req ),
-    EVENT_ITEM( MSG_ID_WIFI_WPS_REQ, _state_idle_event_wps_req ),
-    EVENT_ITEM( MSG_ID_WIFI_SCAN_REQ, _state_disabled_event_init_request ),
-    EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
-};
-
-static const struct app_events_handler _wifi_scanning_state_handler_array[] =
-  {
-    EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
-    EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
-};
-
-static const struct app_events_handler _wifi_wps_state_handler_array[] =
-  {
-    EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
-    EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
-    EVENT_ITEM( MSG_ID_WIFI_WPS_REQ, _state_wps_event_wps_req ),
-};
-
-static const struct app_events_handler _wifi_connecting_state_handler_array[] =
-  {
-    EVENT_ITEM( MSG_ID_WIFI_CONNECT_REQ, _state_connecting_event_connect_req ),
-    EVENT_ITEM( MSG_ID_WIFI_TIMEOUT_CONNECT, _state_connecting_event_timeout_connect ),
-    EVENT_ITEM( MSG_ID_WIFI_CONNECT_RES, _state_connecting_connect_res ),
-    EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
-};
-
-static const struct app_events_handler _wifi_working_state_handler_array[] =
-  {
-    EVENT_ITEM( MSG_ID_WIFI_UPDATE_WIFI_INFO, _state_working_event_update_wifi_info ),
-    EVENT_ITEM( MSG_ID_WIFI_DISCONNECT_REQ, _state_working_event_disconnect_req ),
-    EVENT_ITEM( MSG_ID_WIFI_DISCONNECT_RES, _state_working_event_disconnect_res ),
+    EVENT_ITEM( MSG_ID_WIFI_UPDATE_WIFI_INFO, _state_idle_event_update_wifi_info ),
     EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_common_event_deinit_request ),
 };
 
@@ -167,7 +122,6 @@ static const struct state_context wifi_drv_state[STATE_TOP] =
 
 static app_timer_t timers[] =
   {
-    TIMER_ITEM( TIMER_ID_CONNECT_TIMEOUT, _timeout_connect_cb, 1500, "WiFiConnect" ),
     TIMER_ITEM( TIMER_ID_UPDATE_WIFI_INFO, _update_wifi_info_cb, 1000, "WiFiUpdate" ) };
 
 /* Private functions ---------------------------------------------------------*/
@@ -199,11 +153,6 @@ static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t da
   WifiDrvPostMsg( &event );
 }
 
-static void _timeout_connect_cb( TimerHandle_t xTimer )
-{
-  _send_internal_event( MSG_ID_WIFI_TIMEOUT_CONNECT, NULL, 0 );
-}
-
 static void _update_wifi_info_cb( TimerHandle_t xTimer )
 {
   _send_internal_event( MSG_ID_WIFI_UPDATE_WIFI_INFO, NULL, 0 );
@@ -213,142 +162,25 @@ static void _update_wifi_info_cb( TimerHandle_t xTimer )
 
 static void _state_disabled_event_init_request( const app_event_t* event )
 {
-  /* Add check wifi type */
-  WiFiInitSTA();
-  wifi_drv_err_t err = WIFI_DRV_ERR_WIFI_MEMORY_EMPTY;
-  if ( wifiDataRead( &ctx.wifi_con_data ) == WIFI_ERR_OK )
-  {
-    LOG( PRINT_INFO, "Read from NVS %s %s", ctx.wifi_con_data.ssid, ctx.wifi_con_data.password );
-    ctx.read_wifi_data = true;
-    err = WIFI_DRV_ERR_OK;
-  }
+  wifi_manager_start();
+
+  wifi_drv_err_t err = WIFI_DRV_ERR_OK;
   app_event_t response = { 0 };
   AppEventPrepareWithData( &response, MSG_ID_INIT_RES, APP_EVENT_WIFI_DRV, APP_EVENT_NETWORK_MANAGER, &err, sizeof( err ) );
   NetworkManagerPostMsg( &response );
   _change_state( IDLE );
 }
 
-static void _state_idle_event_connect_req( const app_event_t* event )
-{
-  _change_state( CONNECTING );
-  _send_internal_event( MSG_ID_WIFI_CONNECT_REQ, NULL, 0 );
-}
-
-static void _state_idle_event_wps_req( const app_event_t* event )
-{
-  _change_state( WPS );
-  _send_internal_event( MSG_ID_WIFI_WPS_REQ, NULL, 0 );
-}
-
-static void _state_wps_event_wps_req( const app_event_t* event )
-{
-  wifi_err_t ret = WiFiWPSStart( 30000 );
-  if ( ret == WIFI_ERR_OK )
-  {
-    bool result = true;
-    _change_state( CONNECTING );
-    _send_internal_event( MSG_ID_WIFI_CONNECT_REQ, &result, sizeof( result ) );
-  }
-  else
-  {
-    _change_state( CONNECTING );
-  }
-}
-
-static void _state_connecting_event_connect_req( const app_event_t* event )
-{
-  wifi_err_t ret = WiFiConnect( ctx.wifi_con_data.ssid, ctx.wifi_con_data.password );
-  if ( ret == WIFI_ERR_OK )
-  {
-    bool result = true;
-    _send_internal_event( MSG_ID_WIFI_CONNECT_RES, &result, sizeof( result ) );
-  }
-  else
-  {
-    AppTimerStart( timers, TIMER_ID_CONNECT_TIMEOUT );
-  }
-}
-
-static void _state_connecting_event_timeout_connect( const app_event_t* event )
-{
-  WiFiStop();
-  WiFiConnectLastData();
-
-  if ( ctx.connect_attemps < 3 )
-  {
-    _send_internal_event( MSG_ID_WIFI_CONNECT_REQ, NULL, 0 );
-    ctx.connect_attemps++;
-  }
-  else
-  {
-    bool result = false;
-    _send_internal_event( MSG_ID_WIFI_CONNECT_RES, &result, sizeof( result ) );
-    ctx.connect_attemps = 0;
-  }
-}
-
-static void _state_connecting_connect_res( const app_event_t* event )
-{
-  bool result = false;
-  wifi_drv_err_t err = WIFI_DRV_ERR_OK;
-  if ( AppEventGetData( event, &result, sizeof( result ) ) == false )
-  {
-    LOG( PRINT_ERROR, "%s Cannot get data from event", __func__ );
-    _change_state( DISABLED );
-    return;
-  }
-
-  if ( result )
-  {
-    AppTimerStart( timers, TIMER_ID_UPDATE_WIFI_INFO );
-    _change_state( WORKING );
-  }
-  else
-  {
-    _change_state( IDLE );
-    wifi_drv_err_t err = WIFI_DRV_ERR_FAIL;
-  }
-  app_event_t response = { 0 };
-  AppEventPrepareWithData( &response, MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_RES, APP_EVENT_WIFI_DRV, APP_EVENT_NETWORK_MANAGER, &err, sizeof( err ) );
-  NetworkManagerPostMsg( &response );
-}
-
-static void _state_working_event_update_wifi_info( const app_event_t* event )
+static void _state_idle_event_update_wifi_info( const app_event_t* event )
 {
   WiFiReadInfo( &ctx.rssi );
   AppTimerStart( timers, TIMER_ID_UPDATE_WIFI_INFO );
 }
 
-static void _state_working_event_disconnect_req( const app_event_t* event )
-{
-  wifi_err_t ret = WiFiDisconnect();
-  AppTimerStop( timers, TIMER_ID_UPDATE_WIFI_INFO );
-  _send_internal_event( MSG_ID_WIFI_DISCONNECT_RES, &ret, sizeof( ret ) );
-}
-
-static void _state_working_event_disconnect_res( const app_event_t* event )
-{
-  wifi_err_t ret = 0;
-  if ( !AppEventGetData( event, (void*) &ret, sizeof( ret ) ) )
-  {
-    assert( 0 );
-  }
-
-  if ( ret != WIFI_ERR_OK )
-  {
-    LOG( PRINT_ERROR, "Fail disconnect %d", ret );
-  }
-
-  _change_state( IDLE );
-  /* ToDo: send response */
-}
-
 static void _state_common_event_deinit_request( const app_event_t* event )
 {
-  if ( WiFiDeinit() != WIFI_ERR_OK )
-  {
-    assert( 0 );
-  }
+  assert( WiFiDeinit() == WIFI_ERR_OK );
+  _change_state( DISABLED );
 }
 
 static void wifi_event_task( void* pv )
