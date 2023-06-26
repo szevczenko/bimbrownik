@@ -98,7 +98,9 @@
             "socket.h": "c",
             "app_config.h": "c",
             "random": "c",
-            "wifidrv.h": "c"
+            "wifidrv.h": "c",
+            "json_parser.h": "c",
+            "select.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

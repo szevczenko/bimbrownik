@@ -65,15 +65,60 @@ json_parse_method_t* _GetMethod( lwjson_token_t* token )
   return NULL;
 }
 
-bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* method )
+static bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* method )
 {
   bool result = false;
   for ( size_t i = 0; i < method->tokens_length; i++ )
   {
     if ( strncmp( token->token_name, method->tokens[i].name, token->token_name_len ) == 0 )
     {
-      method->tokens[i].cb();
-      result = true;
+      switch ( token->type )
+      {
+        case LWJSON_TYPE_TRUE:
+          if ( method->tokens[i].bool_cb != NULL )
+          {
+            result = method->tokens[i].bool_cb( true );
+          }
+          break;
+
+        case LWJSON_TYPE_FALSE:
+          if ( method->tokens[i].bool_cb != NULL )
+          {
+            result = method->tokens[i].bool_cb( false );
+          }
+          break;
+
+        case LWJSON_TYPE_NUM_INT:
+          if ( method->tokens[i].int_cb != NULL )
+          {
+            result = method->tokens[i].int_cb( token->u.num_int );
+          }
+          break;
+
+        case LWJSON_TYPE_NUM_REAL:
+          if ( method->tokens[i].double_cb != NULL )
+          {
+            result = method->tokens[i].double_cb( token->u.num_real );
+          }
+          break;
+
+        case LWJSON_TYPE_STRING:
+          if ( method->tokens[i].string_cb != NULL )
+          {
+            result = method->tokens[i].string_cb( token->u.str.token_value, token->u.str.token_value_len );
+          }
+          break;
+
+        case LWJSON_TYPE_NULL:
+          if ( method->tokens[i].null_cb != NULL )
+          {
+            result = method->tokens[i].null_cb();
+          }
+          break;
+
+        default:
+          break;
+      }
       break;
     }
   }
@@ -90,8 +135,10 @@ bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* method 
 
 /* Public functions ----------------------------------------------------------*/
 
-void JSONParse( const char* json_string )
+bool JSONParse( const char* json_string )
 {
+  assert(json_string);
+  bool result = false;
   /* Initialize and pass statically allocated tokens */
   lwjson_init( &ctx.lwjson, ctx.tokens, LWJSON_ARRAYSIZE( ctx.tokens ) );
 
@@ -107,7 +154,7 @@ void JSONParse( const char* json_string )
     {
       LOG( PRINT_ERROR, "Invalid json" );
       lwjson_free( &ctx.lwjson );
-      return;
+      return false;
     }
 
     /* Now print all keys in the object */
@@ -119,13 +166,14 @@ void JSONParse( const char* json_string )
       {
         lwjson_token_t* child_token = lwjson_get_first_child( tkn );
         LOG( PRINT_DEBUG, "Child token name: %s", child_token->token_name );
-        _ParseTokensFromMethod( child_token, method );
+        result = _ParseTokensFromMethod( child_token, method );
       }
     }
 
     /* Call this when not used anymore */
     lwjson_free( &ctx.lwjson );
   }
+  return result;
 }
 
 bool JSONParser_RegisterMethod( json_parse_token_t* tokens, size_t tokens_length, const char* method_name )

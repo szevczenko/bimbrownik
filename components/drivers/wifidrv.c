@@ -153,6 +153,22 @@ static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t da
   WifiDrvPostMsg( &event );
 }
 
+static void _wifi_get_ip_address_cb(void * arg)
+{
+  app_event_t response = { 0 };
+  wifi_drv_err_t err = WIFI_DRV_ERR_CONNECTED;
+  AppEventPrepareWithData( &response, MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_STATUS, APP_EVENT_WIFI_DRV, APP_EVENT_NETWORK_MANAGER, &err, sizeof( err ) );
+  NetworkManagerPostMsg( &response );
+}
+
+static void _wifi_get_disconnected_cb(void * arg)
+{
+  app_event_t response = { 0 };
+  wifi_drv_err_t err = WIFI_DRV_ERR_DISCONNECTED;
+  AppEventPrepareWithData( &response, MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_STATUS, APP_EVENT_WIFI_DRV, APP_EVENT_NETWORK_MANAGER, &err, sizeof( err ) );
+  NetworkManagerPostMsg( &response );
+}
+
 static void _update_wifi_info_cb( TimerHandle_t xTimer )
 {
   _send_internal_event( MSG_ID_WIFI_UPDATE_WIFI_INFO, NULL, 0 );
@@ -163,6 +179,8 @@ static void _update_wifi_info_cb( TimerHandle_t xTimer )
 static void _state_disabled_event_init_request( const app_event_t* event )
 {
   wifi_manager_start();
+  wifi_manager_set_callback(WM_EVENT_STA_GOT_IP, &_wifi_get_ip_address_cb);
+  wifi_manager_set_callback(WM_EVENT_STA_DISCONNECTED, &_wifi_get_disconnected_cb);
 
   wifi_drv_err_t err = WIFI_DRV_ERR_OK;
   app_event_t response = { 0 };

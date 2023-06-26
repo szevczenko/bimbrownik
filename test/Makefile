@@ -91,13 +91,9 @@ PROJECT_ROOT := $(abspath ../components)
 PROJECT_BUILD_DIR := $(BUILD_DIR)/project
 
 PROJECT_DIR := $(PROJECT_ROOT)
-PROJECT_SRC := $(wildcard $(PROJECT_DIR)/application/*.c) \
-								$(wildcard $(PROJECT_DIR)/config/*.c) \
-								$(wildcard $(PROJECT_DIR)/drivers/*.c) \
-								$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/devices/*.c) \
-								$(wildcard $(PROJECT_DIR)/drivers/onewire_uart/src/ow/*.c) \
-								$(wildcard $(PROJECT_DIR)/utils/*.c) \
+PROJECT_SRC := $(wildcard $(PROJECT_DIR)/config/*.c) \
 								$(wildcard $(PROJECT_DIR)/utils/lwjson/*.c) \
+								$(PROJECT_DIR)/drivers/json_parser.c
 
 PROJECT_INCLUDES :=	$(wildcard $(PROJECT_DIR)/application/*.h) \
 										$(wildcard $(PROJECT_DIR)/config/*.h) \
@@ -130,6 +126,7 @@ MAIN_BUILD_DIR := $(BUILD_DIR)/main
 ## Main sources
 MAIN_SOURCES += $(wildcard $(MAIN_DIR)/*.c) \
 								$(wildcard $(MAIN_DIR)/mocks/*.c) \
+								$(wildcard $(MAIN_DIR)/tests/*.c) \
 
 ## Main objects
 MAIN_SOURCES_NAMES :=$(notdir $(MAIN_SOURCES))

@@ -26,7 +26,7 @@
   MSG( NETWORK_MANAGER_TIMEOUT_INIT )             \
   MSG( NETWORK_MANAGER_INIT_RES )                 \
   MSG( NETWORK_MANAGER_TCP_SERVER_CLIENT_STATUS ) \
-  MSG( NETWORK_MANAGER_WIFI_CONNECT_RES )         \
+  MSG( NETWORK_MANAGER_WIFI_CONNECT_STATUS )      \
                                                   \
   /* Wifi internal msg ids */                     \
   MSG( WIFI_UPDATE_WIFI_INFO )                    \

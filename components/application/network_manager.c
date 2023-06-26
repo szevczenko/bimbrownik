@@ -79,7 +79,7 @@ static void _state_init_event_init_response( const app_event_t* event );
 static void _state_init_event_init_module_response( const app_event_t* event );
 static void _state_init_event_timeout_init( const app_event_t* event );
 
-static void _state_idle_event_wifi_connect_res( const app_event_t* event );
+static void _state_idle_event_wifi_connect_status( const app_event_t* event );
 
 /* Status callbacks declaration. ---------------------------------------------*/
 static const struct app_events_handler _disabled_state_handler_array[] =
@@ -98,7 +98,7 @@ static const struct app_events_handler _init_state_handler_array[] =
 static const struct app_events_handler _idle_state_handler_array[] =
   {
     EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
-    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_RES, _state_idle_event_wifi_connect_res ),
+    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_STATUS, _state_idle_event_wifi_connect_status ),
 };
 
 struct state_context
@@ -235,7 +235,7 @@ static void _state_init_event_timeout_init( const app_event_t* event )
   _send_internal_event( MSG_ID_NETWORK_MANAGER_INIT_RES, NULL, 0 );
 }
 
-static void _state_idle_event_wifi_connect_res( const app_event_t* event )
+static void _state_idle_event_wifi_connect_status( const app_event_t* event )
 {
   wifi_drv_err_t err = 0;
   if ( AppEventGetData( event, &err, sizeof( err ) ) == false )
@@ -245,12 +245,21 @@ static void _state_idle_event_wifi_connect_res( const app_event_t* event )
     return;
   }
 
-  if ( err == WIFI_DRV_ERR_OK )
+  app_event_t event_send = { 0 };
+
+  if ( err == WIFI_DRV_ERR_CONNECTED )
   {
-    app_event_t event_send = { 0 };
     AppEventPrepareNoData( &event_send, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
-    TCPServer_PostMsg( &event_send );
   }
+  else if ( err == WIFI_DRV_ERR_DISCONNECTED )
+  {
+    AppEventPrepareNoData( &event_send, MSG_ID_TCP_SERVER_ETHERNET_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+  }
+  else
+  {
+    assert( 0 );
+  }
+  TCPServer_PostMsg( &event_send );
 }
 
 static void _task( void* pv )
