@@ -55,7 +55,6 @@ Contains the freeRTOS task and all necessary support
 #include "lwip/err.h"
 #include "lwip/ip4_addr.h"
 #include "lwip/netdb.h"
-#include "mdns.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "nvs_sync.h"

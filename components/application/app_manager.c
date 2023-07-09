@@ -187,9 +187,9 @@ static void _state_init_event_init_response( const app_event_t* event )
   if ( err_code == APP_MANAGER_ERR_OK )
   {
     /* For tests */
-    // app_event_t event_send = { 0 };
-    // AppEventPrepareNoData( &event_send, MSG_ID_TEMPERATURE_SCAN_DEVICES_REQ, APP_EVENT_APP_MANAGER, APP_EVENT_TEMP_DRV );
-    // TemperaturePostMsg( &event_send );
+    app_event_t event_send = { 0 };
+    AppEventPrepareNoData( &event_send, MSG_ID_TEMPERATURE_SCAN_DEVICES_REQ, APP_EVENT_APP_MANAGER, APP_EVENT_TEMP_DRV );
+    TemperaturePostMsg( &event_send );
     // _send_internal_event( MSG_ID_APP_MANAGER_TEMP_WPS_TEST, NULL, 0 );
     /* --------- */
     _change_state( IDLE );

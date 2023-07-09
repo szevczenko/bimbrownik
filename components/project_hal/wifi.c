@@ -20,6 +20,7 @@
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
 #include "esp_wps.h"
+#include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "netif/ethernet.h"
@@ -84,11 +85,9 @@ static void _wifi_read_info_cb( void* arg, wifi_vendor_ie_type_t type, const uin
 
 static void _on_wifi_disconnect_cb( void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data )
 {
-  system_event_sta_disconnected_t* event = (system_event_sta_disconnected_t*) event_data;
+  wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*) event_data;
 
   ctx.reason_disconnect = event->reason;
-  /* Is needed ??? */
-  tcpip_adapter_down( TCPIP_ADAPTER_IF_STA );
 }
 
 static void _wifi_scan_done_cb( void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data )

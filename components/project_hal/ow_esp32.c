@@ -45,8 +45,8 @@
   }
 
 #define OW_UART_NUM      UART_NUM_1
-#define OW_UART_TXD      GPIO_NUM_27
-#define OW_UART_RXD      GPIO_NUM_26
+#define OW_UART_TXD      GPIO_NUM_18
+#define OW_UART_RXD      GPIO_NUM_37
 #define OW_9600_BAUDRATE 9600
 #define OW_UNUSED( x )   ( (void) ( x ) ) /*!< Unused variable macro */
 
@@ -58,6 +58,8 @@ typedef struct
   uint32_t tx_fifo_addr;
   uint32_t last_baud_rate;
   intr_handle_t handle_ow_uart;
+  int tx_pin;
+  int rx_pin;
 
   uint8_t* tx;
   uint8_t* rx;
@@ -69,7 +71,9 @@ typedef struct
 } ow_ctx_t;
 
 /* Private variables ---------------------------------------------------------*/
-static ow_ctx_t ctx;
+static ow_ctx_t ctx = {
+  .rx_pin = OW_UART_RXD,
+  .tx_pin = OW_UART_TXD };
 
 /* Private functions ---------------------------------------------------------*/
 static void IRAM_ATTR _uart_intr_handle( void* arg )
@@ -102,6 +106,13 @@ static void IRAM_ATTR _uart_intr_handle( void* arg )
     }
     uart_clear_intr_status( OW_UART_NUM, UART_INTR_RXFIFO_FULL );
   }
+}
+
+/* Public functions ---------------------------------------------------------*/
+void OWUart_SetPin( int rx, int tx )
+{
+  ctx.tx_pin = tx;
+  ctx.rx_pin = rx;
 }
 
 uint8_t OWUart_init( void* arg )

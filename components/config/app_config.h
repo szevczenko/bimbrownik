@@ -62,7 +62,7 @@
 #define TIME_IMMEDIATE   0
 #define NORMALPRIO       5
 
-#define MS2ST( ms )   ( ( ms ) / portTICK_RATE_MS )
+#define MS2ST( ms )   pdMS_TO_TICKS( ms )
 #define ST2MS( tick ) ( (tick) *portTICK_RATE_MS )
 
 #define osDelay( ms )       vTaskDelay( MS2ST( ms ) )

@@ -4,7 +4,7 @@
             "path": "."
         },
         {
-            "path": "../esp_tools/frameworks/esp-idf-v4.4.3"
+            "path": "../../Espressif/frameworks/esp-idf-v5.1"
         }
     ],
     "settings": {
@@ -20,7 +20,7 @@
                 "path": "C:\\WINDOWS\\System32\\cmd.exe",
                 "args": [
                     "/K",
-                    "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat"
+                    "${workspaceFolder}/../esp_tools/idf_cmd_init.bat esp-idf-6d46fc4ab0112ff48bc13dba62835e72"
                 ],
             },
             "MSYS2 Bash": {
@@ -100,7 +100,12 @@
             "random": "c",
             "wifidrv.h": "c",
             "json_parser.h": "c",
-            "select.h": "c"
+            "select.h": "c",
+            "gpio.h": "c",
+            "esp_wifi.h": "c",
+            "esp_event.h": "c",
+            "esp_netif.h": "c",
+            "xiosbase": "c"
         },
         "cSpell.words": [
             "Dmytro",

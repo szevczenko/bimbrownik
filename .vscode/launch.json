@@ -10,7 +10,7 @@
       "name": "Debug ESP32",
       "target": "build/main.elf",
       "cwd": "${workspaceFolder}",
-      "gdbpath": "C:/projekty/esp_tools/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/bin/xtensa-esp32-elf-gdb", // Path of the toolchain
+      "gdbpath": "C:/projekty/esp_tools/tools/xtensa-esp-elf-gdb/12.1_20221002/xtensa-esp-elf-gdb/bin/xtensa-esp32s2-elf-gdb", // Path of the toolchain
       "autorun": [
         "target extended-remote :3333", // Connect to OpenOCD
         "mon reset halt", // Reset the chip and keep the CPUs halted
@@ -33,7 +33,7 @@
       "environment": [],
       "externalConsole": true,
       "MIMode": "gdb",
-      "miDebuggerPath": "C:\\cygwin64\\bin\\gdb.exe",
+      "miDebuggerPath": "C:/cygwin64/bin/gdb.exe",
       "setupCommands": [
         {
           "description": "Enable pretty-printing for gdb",

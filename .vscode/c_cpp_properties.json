@@ -7,20 +7,20 @@
                 "${workspaceFolder}/components/**",
                 "${workspaceFolder}/main/**",
                 "${workspaceFolder}/test/**",
-                "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/components/**",
-                "${workspaceFolder}/../esp_tools/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/xtensa-esp32-elf/**"
+                "C:/Espressif/frameworks/esp-idf-v5.1/components/**",
+                "${workspaceFolder}/../esp_tools/tools/xtensa-esp32s2-elf/esp-12.2.0_20230208/xtensa-esp32s2-elf/**"
             ],
             "browse": 
             {
                 "path" : 
                 [
                     "${workspaceFolder}/**",
-                    "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3",
-                    "${workspaceFolder}/../esp_tools/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/xtensa-esp32-elf/**"
+                    "C:/Espressif/frameworks/esp-idf-v5.1",
+                    "${workspaceFolder}/../esp_tools/tools/xtensa-esp32s2-elf/esp-12.2.0_20230208/xtensa-esp32s2-elf/**"
                 ]
             },
             "defines": [],
-            "compilerPath": "${workspaceFolder}/../esp_tools/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/bin/xtensa-esp32-elf-gcc.exe",
+            "compilerPath": "${workspaceFolder}/../esp_tools/tools/xtensa-esp32s2-elf/esp-12.2.0_20230208/xtensa-esp32s2-elf/bin/xtensa-esp32s2-elf-gcc.exe",
             "cStandard": "c11",
             "intelliSenseMode": "windows-gcc-x86",
             "cppStandard": "c++11",

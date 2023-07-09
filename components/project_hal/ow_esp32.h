@@ -19,5 +19,6 @@ uint8_t OWUart_init( void* arg );
 uint8_t OWUart_deinit( void* arg );
 uint8_t OWUart_setBaudrate( uint32_t baud, void* arg );
 uint8_t OWUart_transmitReceive( const uint8_t* tx, uint8_t* rx, size_t len, void* arg );
+void OWUart_SetPin( int rx, int tx );
 
 #endif

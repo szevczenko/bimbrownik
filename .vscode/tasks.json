@@ -10,18 +10,18 @@
         {
             "label": "Configure",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py menuconfig",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py menuconfig",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py menuconfig"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py menuconfig"
             }
         },
         {
             "label": "Build",
             "group": "build",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py build",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py build",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py build"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py build"
             },
             "problemMatcher": {
                 "owner": "cpp",
@@ -43,9 +43,9 @@
             "label": "Get size",
             "group": "build",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py size",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py size",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py size"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py size"
             },
             "problemMatcher": {
                 "owner": "cpp",
@@ -67,27 +67,27 @@
             "label": "Clean",
             "group": "build",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py clean",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py clean",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py clean"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py clean"
             }
         },
         {
             "label": "Clean (full)",
             "group": "build",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py fullclean",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py fullclean",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py fullclean"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py fullclean"
             }
         },
         {
             "label": "Flash",
             "group": "test",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py flash",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py flash",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py flash"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py flash"
             },
             "problemMatcher": {
                 "owner": "cpp",
@@ -109,18 +109,18 @@
             "label": "Erase flash",
             "group": "build",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py erase_flash",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py erase_flash",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py erase_flash"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py erase_flash"
             }
         },
         {
             "label": "Monitor",
             "group": "test",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py monitor",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py monitor",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py monitor"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py monitor"
             },
             "isBackground": true
         },
@@ -128,9 +128,9 @@
             "label": "OpenOCD Flash",
             "group": "build",
             "type": "shell",
-            "command": ". ${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.sh & idf.py build & openocd -f interface/ftdi/esp32_devkitj_v1.cfg -f board/esp32-wrover.cfg",
+            "command": ". C:/Espressif/frameworks/esp-idf-v5.1/export.sh & idf.py build & openocd -f interface/ftdi/esp32_devkitj_v1.cfg -f board/esp32s2-kaluga-1",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & idf.py build & openocd -f board/esp32-wrover-kit-3.3v.cfg -c \"program_esp build/main.bin 0x10000 verify exit\""
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & idf.py build & openocd -f board/esp32s2-kaluga-1.cfg -c \"program_esp build/main.bin 0x10000 verify exit\""
             },
             "isBackground": true,
             "problemMatcher": {
@@ -150,7 +150,7 @@
             "label": "OpenOCD",
             "type": "shell",
             "windows": {
-                "command": "${workspaceFolder}/../esp_tools/frameworks/esp-idf-v4.4.3/export.bat & openocd -f board/esp32-wrover-kit-3.3v.cfg"
+                "command": "C:/Espressif/frameworks/esp-idf-v5.1/export.bat & openocd -f board/esp32s2-kaluga-1.cfg"
             },
             "isBackground": true,
             "problemMatcher": {

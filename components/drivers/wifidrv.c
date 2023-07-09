@@ -69,7 +69,7 @@ typedef struct
 
 typedef enum
 {
-  TIMER_ID_CONNECT_TIMEOUT,
+  //TIMER_ID_CONNECT_TIMEOUT,
   TIMER_ID_UPDATE_WIFI_INFO,
   TIMER_ID_LAST
 } timer_id;

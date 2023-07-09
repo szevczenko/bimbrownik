@@ -66,51 +66,51 @@ static lv_disp_drv_t disp_drv;
 
 static void guiTask( void* pvParameter )
 {
-  (void) pvParameter;
-  xGuiSemaphore = xSemaphoreCreateMutex();
+//   (void) pvParameter;
+//   xGuiSemaphore = xSemaphoreCreateMutex();
 
-  lv_init();
-  // lvgl_driver_init();
-  lv_disp_draw_buf_init( &disp_buf, buf1, buf2, DISP_BUF_SIZE );
+//   lv_init();
+//   // lvgl_driver_init();
+//   lv_disp_draw_buf_init( &disp_buf, buf1, buf2, DISP_BUF_SIZE );
 
-  lv_disp_drv_init( &disp_drv );
-  // disp_drv.flush_cb = disp_driver_flush;
-  disp_drv.hor_res = 320;
-  disp_drv.ver_res = 480;
-  disp_drv.draw_buf = &disp_buf;
-  lv_disp_drv_register( &disp_drv );
+//   lv_disp_drv_init( &disp_drv );
+//   // disp_drv.flush_cb = disp_driver_flush;
+//   disp_drv.hor_res = 320;
+//   disp_drv.ver_res = 480;
+//   disp_drv.draw_buf = &disp_buf;
+//   lv_disp_drv_register( &disp_drv );
 
-  /* Register an input device when enabled on the menuconfig */
-#if CONFIG_LV_TOUCH_CONTROLLER != TOUCH_CONTROLLER_NONE
-  lv_indev_drv_t indev_drv;
-  lv_indev_drv_init( &indev_drv );
-  indev_drv.read_cb = touch_driver_read;
-  indev_drv.type = LV_INDEV_TYPE_POINTER;
-  lv_indev_drv_register( &indev_drv );
-#endif
+//   /* Register an input device when enabled on the menuconfig */
+// #if CONFIG_LV_TOUCH_CONTROLLER != TOUCH_CONTROLLER_NONE
+//   lv_indev_drv_t indev_drv;
+//   lv_indev_drv_init( &indev_drv );
+//   indev_drv.read_cb = touch_driver_read;
+//   indev_drv.type = LV_INDEV_TYPE_POINTER;
+//   lv_indev_drv_register( &indev_drv );
+// #endif
 
-  /* Create and start a periodic timer interrupt to call lv_tick_inc */
-  const esp_timer_create_args_t periodic_timer_args = {
-    .callback = &lv_tick_task,
-    .name = "periodic_gui" };
-  esp_timer_handle_t periodic_timer;
-  ESP_ERROR_CHECK( esp_timer_create( &periodic_timer_args, &periodic_timer ) );
-  ESP_ERROR_CHECK( esp_timer_start_periodic( periodic_timer, LV_TICK_PERIOD_MS * 1000 ) );
+//   /* Create and start a periodic timer interrupt to call lv_tick_inc */
+//   const esp_timer_create_args_t periodic_timer_args = {
+//     .callback = &lv_tick_task,
+//     .name = "periodic_gui" };
+//   esp_timer_handle_t periodic_timer;
+//   ESP_ERROR_CHECK( esp_timer_create( &periodic_timer_args, &periodic_timer ) );
+//   ESP_ERROR_CHECK( esp_timer_start_periodic( periodic_timer, LV_TICK_PERIOD_MS * 1000 ) );
 
-  /* Create the demo application */
-  ui_init();
+//   /* Create the demo application */
+//   ui_init();
 
   while ( 1 )
   {
     /* Delay 1 tick (assumes FreeRTOS tick is 10ms */
     vTaskDelay( pdMS_TO_TICKS( 10 ) );
 
-    /* Try to take the semaphore, call lvgl related function on success */
-    if ( pdTRUE == xSemaphoreTake( xGuiSemaphore, portMAX_DELAY ) )
-    {
-      lv_task_handler();
-      xSemaphoreGive( xGuiSemaphore );
-    }
+    // /* Try to take the semaphore, call lvgl related function on success */
+    // if ( pdTRUE == xSemaphoreTake( xGuiSemaphore, portMAX_DELAY ) )
+    // {
+    //   lv_task_handler();
+    //   xSemaphoreGive( xGuiSemaphore );
+    // }
   }
 }
 

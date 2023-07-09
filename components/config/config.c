@@ -30,7 +30,7 @@ config_t config =
     .dev_type = DEFAULT_DEV_TYPE,
     .end_config = END_CONFIG };
 
-static xSemaphoreHandle mutexSemaphore;
+static SemaphoreHandle_t mutexSemaphore;
 
 void config_printf( enum config_print_lvl module_lvl, enum config_print_lvl msg_lvl, const char* format, ... )
 {
