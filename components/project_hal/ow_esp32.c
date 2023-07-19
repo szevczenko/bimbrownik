@@ -15,6 +15,7 @@
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "freertos/semphr.h"
+#include "hal/uart_hal.h"
 #include "hal/uart_ll.h"
 
 /* Private macros ------------------------------------------------------------*/
@@ -79,7 +80,8 @@ static ow_ctx_t ctx = {
 static void IRAM_ATTR _uart_intr_handle( void* arg )
 {
   uint16_t _len = uart_ll_get_rxfifo_len( ctx.dev );
-  if ( ctx.dev->int_st.val & UART_INTR_TX_DONE )
+  uint32_t uart_intr_status = uart_ll_get_intsts_mask(ctx.dev);
+  if ( uart_intr_status & UART_INTR_TX_DONE )
   {
     if ( ctx.tx_len == ctx.len )
     {
@@ -92,7 +94,7 @@ static void IRAM_ATTR _uart_intr_handle( void* arg )
     }
     uart_clear_intr_status( OW_UART_NUM, UART_INTR_TX_DONE );
   }
-  if ( ctx.dev->int_st.val & UART_INTR_RXFIFO_FULL )
+  if ( uart_intr_status & UART_INTR_RXFIFO_FULL )
   {
     while ( _len && ( ctx.rx_done == false ) && ctx.rx_len < ctx.len )
     {
@@ -127,22 +129,49 @@ uint8_t OWUart_init( void* arg )
   assert( ctx.rx_done );
   uart_config_t uart_config = OW_UART_CONFIG( ctx.last_baud_rate );
 
+  ///////////////////////
+  //zero-initialize the config structure.
+  gpio_config_t io_conf = {};
+  //disable interrupt
+  io_conf.intr_type = GPIO_INTR_DISABLE;
+  //set as output mode
+  io_conf.mode = GPIO_MODE_OUTPUT;
+  //bit mask of the pins that you want to set,e.g.GPIO18/19
+  io_conf.pin_bit_mask = ( /*( 1ULL << 37 ) |*/ ( 1ULL << 36 ) | ( 1ULL << 35 ) | ( 1ULL << 34 ) | ( 1ULL << 33 ) );
+  //disable pull-down mode
+  io_conf.pull_down_en = 0;
+  //disable pull-up mode
+  io_conf.pull_up_en = 0;
+  //configure GPIO with the given settings
+  // gpio_config( &io_conf );
+  // gpio_set_level(36, 0);
+  // gpio_set_level(35, 0);
+  // gpio_set_level(34, 0);
+  // gpio_set_level(33, 0);
+  ///////////////////////
+
   OW_ERROR_CHECK( uart_param_config( OW_UART_NUM, &uart_config ) );
   OW_ERROR_CHECK( uart_set_pin( OW_UART_NUM, OW_UART_TXD, OW_UART_RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE ) );
+
   uart_ll_ena_intr_mask( ctx.dev, UART_INTR_TX_DONE | UART_INTR_RXFIFO_FULL );
   int ret = esp_intr_alloc( uart_periph_signal[OW_UART_NUM].irq, ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM, _uart_intr_handle, NULL, &ctx.handle_ow_uart );
   if ( ret != ESP_OK )
   {
     return 0;
   }
+  /*
   ctx.rx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_REG( 0 ) :
                      ( ctx.dev == &UART1 ) ? UART_FIFO_REG( 1 ) :
                                              UART_FIFO_REG( 2 );
   ctx.tx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_AHB_REG( 0 ) :
                      ( ctx.dev == &UART1 ) ? UART_FIFO_AHB_REG( 1 ) :
                                              UART_FIFO_AHB_REG( 2 );
-  ctx.dev->conf1.rxfifo_full_thrhd = 1;
-
+  */
+  ctx.rx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_AHB_REG( 0 ) : UART_FIFO_AHB_REG( 1 );
+  ctx.tx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_AHB_REG( 0 ) : UART_FIFO_AHB_REG( 1 );
+  // ctx.dev->conf1.rxfifo_full_thrhd = 1;
+  // ctx.dev->idle_conf.rx_idle_thrhd = 1;
+  uart_ll_set_rxfifo_full_thr( ctx.dev, 1 );
   OW_UNUSED( arg );
 
   return 1;

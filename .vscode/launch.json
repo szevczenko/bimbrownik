@@ -5,19 +5,58 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "gdb",
+      "type": "espidf",
+      "name": "espidf",
+      "request": "launch",
+      "logLevel": 2,
+      "mode": "manual",
+      "verifyAppBinBeforeDebug": false,
+      "tmoScaleFactor": 1,
+      "initGdbCommands": [
+        "target remote :3333",
+        "symbol-file ${workspaceFolder}\\build\\main.elf",
+        "mon reset halt",
+        "flushregs",
+        "thb app_main"
+      ],
+      "preLaunchTask": "OpenOCD",
+      "postDebugTask": "Terminate All Tasks",
+    },
+    {
+      "type": "cppdbg",
       "request": "launch",
       "name": "Debug ESP32",
-      "target": "build/main.elf",
+      "program": "${workspaceFolder}\\build\\main.elf",
       "cwd": "${workspaceFolder}",
-      "gdbpath": "C:/projekty/esp_tools/tools/xtensa-esp-elf-gdb/12.1_20221002/xtensa-esp-elf-gdb/bin/xtensa-esp32s2-elf-gdb", // Path of the toolchain
-      "autorun": [
-        "target extended-remote :3333", // Connect to OpenOCD
-        "mon reset halt", // Reset the chip and keep the CPUs halted
-        "set remote hardware-watchpoint-limit 2", // Restrict GDB to using two hardware watchpoints supported by ESP32
-        "flushregs", // Force GDB to get new state from the target
-        "thb app_main", // Insert a temporary hardware breakpoint at the main function
-        "c" // Resume the program. It will then stop at breakpoint inserted at app_main
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "${config:idf.customExtraPaths}"
+        }
+      ],
+      "miDebuggerPath": "C:/projekty/esp_tools/tools/xtensa-esp-elf-gdb/12.1_20221002/xtensa-esp-elf-gdb/bin/xtensa-esp32s2-elf-gdb.exe", // Path of the toolchain
+      "setupCommands": [
+        // {
+        //   "text": "mon esp appimage_offset 0x100000"
+        // },
+        // {
+        //   "text": "disconnect"
+        // },
+        {
+          "text": "target extended-remote :3333"
+        },
+        {
+          "text": "set remote hardware-watchpoint-limit 2"
+        },
+        {
+          "text": "mon reset halt"
+        },
+        {
+          "text": "thb app_main"
+        },
+        {
+          "text": "flushregs"
+        }
       ],
       "preLaunchTask": "OpenOCD",
       "postDebugTask": "Terminate All Tasks",

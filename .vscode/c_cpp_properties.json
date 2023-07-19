@@ -7,7 +7,7 @@
                 "${workspaceFolder}/components/**",
                 "${workspaceFolder}/main/**",
                 "${workspaceFolder}/test/**",
-                "C:/Espressif/frameworks/esp-idf-v5.1/components/**",
+                "${workspaceFolder}/../esp_idf/components/**",
                 "${workspaceFolder}/../esp_tools/tools/xtensa-esp32s2-elf/esp-12.2.0_20230208/xtensa-esp32s2-elf/**"
             ],
             "browse": 
@@ -15,7 +15,7 @@
                 "path" : 
                 [
                     "${workspaceFolder}/**",
-                    "C:/Espressif/frameworks/esp-idf-v5.1",
+                    "${workspaceFolder}/../esp_idf/components/**",
                     "${workspaceFolder}/../esp_tools/tools/xtensa-esp32s2-elf/esp-12.2.0_20230208/xtensa-esp32s2-elf/**"
                 ]
             },
