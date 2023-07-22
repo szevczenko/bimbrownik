@@ -57,7 +57,7 @@ void app_main( void )
     }
     if ( rom_found == 0 )
     {
-      vTaskDelay( 1000 );
+      vTaskDelay( 1000 / portTICK_PERIOD_MS );
     }
   } while ( rom_found == 0 );
 
@@ -68,7 +68,7 @@ void app_main( void )
     {
       printf( "Start temperature conversion\r\n" );
       ow_ds18x20_start( &ow, NULL ); /* Start conversion on all devices, use protected API */
-      vTaskDelay( 1000 ); /* Release thread for 1 second */
+      vTaskDelay( 1000 / portTICK_PERIOD_MS ); /* Release thread for 1 second */
 
       /* Read temperature on all devices */
       avg_temp = 0;

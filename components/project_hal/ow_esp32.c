@@ -46,8 +46,8 @@
   }
 
 #define OW_UART_NUM      UART_NUM_1
-#define OW_UART_TXD      GPIO_NUM_18
-#define OW_UART_RXD      GPIO_NUM_37
+#define OW_UART_TXD      GPIO_NUM_37
+#define OW_UART_RXD      GPIO_NUM_18
 #define OW_9600_BAUDRATE 9600
 #define OW_UNUSED( x )   ( (void) ( x ) ) /*!< Unused variable macro */
 
@@ -80,7 +80,7 @@ static ow_ctx_t ctx = {
 static void IRAM_ATTR _uart_intr_handle( void* arg )
 {
   uint16_t _len = uart_ll_get_rxfifo_len( ctx.dev );
-  uint32_t uart_intr_status = uart_ll_get_intsts_mask(ctx.dev);
+  uint32_t uart_intr_status = uart_ll_get_intsts_mask( ctx.dev );
   if ( uart_intr_status & UART_INTR_TX_DONE )
   {
     if ( ctx.tx_len == ctx.len )
@@ -135,7 +135,7 @@ uint8_t OWUart_init( void* arg )
   //disable interrupt
   io_conf.intr_type = GPIO_INTR_DISABLE;
   //set as output mode
-  io_conf.mode = GPIO_MODE_OUTPUT;
+  io_conf.mode = GPIO_MODE_INPUT;
   //bit mask of the pins that you want to set,e.g.GPIO18/19
   io_conf.pin_bit_mask = ( /*( 1ULL << 37 ) |*/ ( 1ULL << 36 ) | ( 1ULL << 35 ) | ( 1ULL << 34 ) | ( 1ULL << 33 ) );
   //disable pull-down mode
@@ -143,11 +143,11 @@ uint8_t OWUart_init( void* arg )
   //disable pull-up mode
   io_conf.pull_up_en = 0;
   //configure GPIO with the given settings
-  // gpio_config( &io_conf );
-  // gpio_set_level(36, 0);
-  // gpio_set_level(35, 0);
-  // gpio_set_level(34, 0);
-  // gpio_set_level(33, 0);
+  gpio_config( &io_conf );
+  gpio_set_level( 36, 0 );
+  gpio_set_level( 35, 0 );
+  gpio_set_level( 34, 0 );
+  gpio_set_level( 33, 0 );
   ///////////////////////
 
   OW_ERROR_CHECK( uart_param_config( OW_UART_NUM, &uart_config ) );
@@ -159,18 +159,8 @@ uint8_t OWUart_init( void* arg )
   {
     return 0;
   }
-  /*
-  ctx.rx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_REG( 0 ) :
-                     ( ctx.dev == &UART1 ) ? UART_FIFO_REG( 1 ) :
-                                             UART_FIFO_REG( 2 );
-  ctx.tx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_AHB_REG( 0 ) :
-                     ( ctx.dev == &UART1 ) ? UART_FIFO_AHB_REG( 1 ) :
-                                             UART_FIFO_AHB_REG( 2 );
-  */
   ctx.rx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_AHB_REG( 0 ) : UART_FIFO_AHB_REG( 1 );
   ctx.tx_fifo_addr = ( ctx.dev == &UART0 ) ? UART_FIFO_AHB_REG( 0 ) : UART_FIFO_AHB_REG( 1 );
-  // ctx.dev->conf1.rxfifo_full_thrhd = 1;
-  // ctx.dev->idle_conf.rx_idle_thrhd = 1;
   uart_ll_set_rxfifo_full_thr( ctx.dev, 1 );
   OW_UNUSED( arg );
 
