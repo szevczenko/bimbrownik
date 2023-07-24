@@ -5,6 +5,7 @@
             "includePath": 
             [
                 "${workspaceFolder}/components/**",
+                "${workspaceFolder}/managed_components/**",
                 "${workspaceFolder}/main/**",
                 "${workspaceFolder}/test/**",
                 "${workspaceFolder}/../esp_idf/components/**",

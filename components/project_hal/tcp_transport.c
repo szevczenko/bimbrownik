@@ -28,8 +28,6 @@
 #define LOG( PRINT_INFO, ... )
 #endif
 
-#define PORT 1234
-
 /* Private functions ---------------------------------------------------------*/
 
 int TCPTransport_CreateSocket( void )
@@ -42,13 +40,13 @@ int TCPTransport_CreateSocket( void )
   return rc;
 }
 
-int TCPTransport_Bind( int socket )
+int TCPTransport_Bind( int socket, uint16_t port )
 {
   struct sockaddr_in servaddr = {};
   int optval = 1;
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = htonl( INADDR_ANY );
-  servaddr.sin_port = htons( PORT );
+  servaddr.sin_port = htons( port );
   setsockopt( socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof( int ) );
   int rc = bind( socket, (struct sockaddr*) &servaddr, sizeof( servaddr ) );
   if ( rc < 0 )
@@ -86,12 +84,12 @@ int TCPTransport_Select( int socket, uint32_t timeout_ms )
   return rc;
 }
 
-int TCPTransport_Accept( int socket )
+int TCPTransport_Accept( int socket, uint16_t port )
 {
   struct sockaddr_in servaddr = {};
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = htonl( INADDR_ANY );
-  servaddr.sin_port = htons( PORT );
+  servaddr.sin_port = htons( port );
   socklen_t len = sizeof( servaddr );
   int rc = accept( socket, (struct sockaddr*) &servaddr, &len );
   if ( rc < 0 )

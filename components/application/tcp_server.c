@@ -10,9 +10,9 @@
 
 #include "tcp_server.h"
 
+#include "app_config.h"
 #include "app_events.h"
 #include "app_timers.h"
-#include "app_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -32,6 +32,7 @@
 
 #define PAYLOAD_SIZE                   256
 #define CONFIG_TCPIP_EVENT_THD_WA_SIZE 4096
+#define PORT                           1234
 
 /** @brief  Array with defined states */
 #define STATE_HANDLER_ARRAY                                      \
@@ -251,7 +252,7 @@ static void _state_idle_event_prepare_socket( const app_event_t* event )
     return;
   }
 
-  int rc = TCPTransport_Bind( ctx.server_socket );
+  int rc = TCPTransport_Bind( ctx.server_socket, PORT );
   if ( rc < 0 )
   {
     _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
@@ -291,7 +292,7 @@ static void _state_wait_connecting_event_wait_connection( const app_event_t* eve
   //   return;
   // }
 
-  ret = TCPTransport_Accept( ctx.server_socket );
+  ret = TCPTransport_Accept( ctx.server_socket, PORT );
   if ( ret < 0 )
   {
     _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
@@ -317,7 +318,7 @@ static void _state_working_event_wait_client_data( const app_event_t* event )
     return;
   }
 
-  int ret = TCPTransport_Select( ctx.client_socket, 100 );
+  int ret = TCPTransport_Select( ctx.client_socket, 1000 );
 
   if ( ret < 0 )
   {
@@ -330,6 +331,7 @@ static void _state_working_event_wait_client_data( const app_event_t* event )
     if ( ret > 0 )
     {
       // const size_t payload_size = ret;
+      LOG( PRINT_INFO, "Rx: %s, len %d", ctx.payload, ret );
       /* ToDo parse response */
     }
     else

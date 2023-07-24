@@ -106,7 +106,12 @@
             "esp_wifi.h": "c",
             "esp_event.h": "c",
             "esp_netif.h": "c",
-            "xiosbase": "c"
+            "xiosbase": "c",
+            "ow.h": "c",
+            "uart_ll.h": "c",
+            "mdns.h": "c",
+            "mdns_service.h": "c",
+            "tcp_server.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

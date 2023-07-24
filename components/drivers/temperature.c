@@ -284,7 +284,7 @@ static void _state_scanning_event_scan_devices_res( const app_event_t* event )
   AppManagerPostMsg( &response );
   if ( err == TEMP_DRV_ERR_OK )
   {
-    _send_internal_event( MSG_ID_TEMPERATURE_MEASURE_REQ, NULL, 0 );
+    // _send_internal_event( MSG_ID_TEMPERATURE_MEASURE_REQ, NULL, 0 );
     _change_state( WORKING );
   }
   else

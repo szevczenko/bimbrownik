@@ -52,7 +52,7 @@ json_parser_ctx_t ctx;
 
 /* Private functions ---------------------------------------------------------*/
 
-json_parse_method_t* _GetMethod( lwjson_token_t* token )
+static json_parse_method_t* _GetMethod( lwjson_token_t* token )
 {
   for ( size_t i = 0; i < ctx.methods_length; i++ )
   {
@@ -158,7 +158,7 @@ bool JSONParse( const char* json_string )
     }
 
     /* Now print all keys in the object */
-    for ( const lwjson_token_t* tkn = lwjson_get_first_child( t ); tkn != NULL; tkn = tkn->next )
+    for ( lwjson_token_t* tkn = lwjson_get_first_child( t ); tkn != NULL; tkn = tkn->next )
     {
       LOG( PRINT_DEBUG, "Token: %.*s", (int) tkn->token_name_len, tkn->token_name );
       json_parse_method_t* method = _GetMethod( tkn );

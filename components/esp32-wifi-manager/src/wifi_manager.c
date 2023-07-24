@@ -55,6 +55,7 @@ Contains the freeRTOS task and all necessary support
 #include "lwip/err.h"
 #include "lwip/ip4_addr.h"
 #include "lwip/netdb.h"
+#include "mdns_service.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "nvs_sync.h"
@@ -137,6 +138,9 @@ const int WIFI_MANAGER_SCAN_BIT = BIT7;
 
 /* @brief When set, means user requested for a disconnect */
 const int WIFI_MANAGER_REQUEST_DISCONNECT_BIT = BIT8;
+
+/* @brief When set, esp in connecting state */
+const int WIFI_MANAGER_CONNECTING_BIT = BIT9;
 
 void wifi_manager_timer_retry_cb( TimerHandle_t xTimer )
 {
@@ -661,7 +665,7 @@ static void wifi_manager_event_handler( void* arg, esp_event_base_t event_base, 
         *wifi_event_sta_disconnected = *( (wifi_event_sta_disconnected_t*) event_data );
 
         /* if a DISCONNECT message is posted while a scan is in progress this scan will NEVER end, causing scan to never work again. For this reason SCAN_BIT is cleared too */
-        xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_WIFI_CONNECTED_BIT | WIFI_MANAGER_SCAN_BIT );
+        xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_WIFI_CONNECTED_BIT | WIFI_MANAGER_SCAN_BIT | WIFI_MANAGER_CONNECTING_BIT );
 
         /* post disconnect event with reason code */
         wifi_manager_send_message( WM_EVENT_STA_DISCONNECTED, (void*) wifi_event_sta_disconnected );
@@ -689,6 +693,7 @@ static void wifi_manager_event_handler( void* arg, esp_event_base_t event_base, 
 		 * to do something, for example, to get the info of the connected STA, etc. */
       case WIFI_EVENT_AP_STACONNECTED:
         ESP_LOGI( TAG, "WIFI_EVENT_AP_STACONNECTED" );
+        xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_CONNECTING_BIT );
         break;
 
       /* This event can happen in the following scenarios:
@@ -699,6 +704,7 @@ static void wifi_manager_event_handler( void* arg, esp_event_base_t event_base, 
 		 * something, e.g., close the socket which is related to this station, etc. */
       case WIFI_EVENT_AP_STADISCONNECTED:
         ESP_LOGI( TAG, "WIFI_EVENT_AP_STADISCONNECTED" );
+        xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_CONNECTING_BIT );
         break;
 
       /* This event is disabled by default. The application can enable it via API esp_wifi_set_event_mask().
@@ -918,6 +924,8 @@ void wifi_manager( void* pvParameters )
   esp_netif_sta = esp_netif_create_default_wifi_sta();
   esp_netif_ap = esp_netif_create_default_wifi_ap();
 
+  mDNS_Start();
+
   /* default wifi config */
   wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK( esp_wifi_init( &wifi_init_config ) );
@@ -1030,7 +1038,7 @@ void wifi_manager( void* pvParameters )
 
           /* if a scan is already in progress this message is simply ignored thanks to the WIFI_MANAGER_SCAN_BIT uxBit */
           uxBits = xEventGroupGetBits( wifi_manager_event_group );
-          if ( !( uxBits & WIFI_MANAGER_SCAN_BIT ) )
+          if ( !( uxBits & WIFI_MANAGER_SCAN_BIT ) && !( uxBits & WIFI_MANAGER_CONNECTING_BIT ) )
           {
             xEventGroupSetBits( wifi_manager_event_group, WIFI_MANAGER_SCAN_BIT );
             ESP_ERROR_CHECK( esp_wifi_scan_start( &scan_config, false ) );
@@ -1079,7 +1087,7 @@ void wifi_manager( void* pvParameters )
           }
 
           uxBits = xEventGroupGetBits( wifi_manager_event_group );
-          if ( !( uxBits & WIFI_MANAGER_WIFI_CONNECTED_BIT ) )
+          if ( !( uxBits & WIFI_MANAGER_WIFI_CONNECTED_BIT ) && !( uxBits & WIFI_MANAGER_CONNECTING_BIT ) )
           {
             /* update config to latest and attempt connection */
             ESP_ERROR_CHECK( esp_wifi_set_config( ESP_IF_WIFI_STA, wifi_manager_get_wifi_sta_config() ) );
@@ -1090,6 +1098,7 @@ void wifi_manager( void* pvParameters )
             {
               esp_wifi_scan_stop();
             }
+            xEventGroupSetBits( wifi_manager_event_group, WIFI_MANAGER_CONNECTING_BIT );
             ESP_ERROR_CHECK( esp_wifi_connect() );
           }
 
