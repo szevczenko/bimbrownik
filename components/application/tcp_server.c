@@ -16,6 +16,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "json_parser.h"
 #include "network_manager.h"
 #include "tcp_transport.h"
 
@@ -32,7 +33,6 @@
 
 #define PAYLOAD_SIZE                   256
 #define CONFIG_TCPIP_EVENT_THD_WA_SIZE 4096
-#define PORT                           1234
 
 /** @brief  Array with defined states */
 #define STATE_HANDLER_ARRAY                                      \
@@ -51,13 +51,6 @@ typedef enum
     STATE_TOP,
 } state_t;
 
-// typedef enum
-// {
-//   TIMER_ID_CONNECT_TIMEOUT,
-//   TIMER_ID_UPDATE_WIFI_INFO,
-//   TIMER_ID_LAST
-// } timer_id;
-
 typedef struct
 {
   state_t state;
@@ -74,9 +67,6 @@ typedef struct
 static module_context_t ctx;
 
 /* Private functions declaration ---------------------------------------------*/
-
-// static void _timeout_connect_cb( TimerHandle_t xTimer );
-// static void _update_info_cb( TimerHandle_t xTimer );
 
 static void _state_common_event_deinit_request( const app_event_t* event );
 static void _state_common_event_ethernet_connected( const app_event_t* event );
@@ -143,11 +133,6 @@ static const struct state_context module_state[STATE_TOP] =
     STATE_HANDLER_ARRAY
 #undef STATE
 };
-
-// static app_timer_t timers[] =
-//   {
-//     TIMER_ITEM( TIMER_ID_CONNECT_TIMEOUT, _timeout_connect_cb, 1500, "WiFiConnect" ),
-//     TIMER_ITEM( TIMER_ID_UPDATE_WIFI_INFO, _update_info_cb, 1000, "WiFiUpdate" ) };
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -252,7 +237,7 @@ static void _state_idle_event_prepare_socket( const app_event_t* event )
     return;
   }
 
-  int rc = TCPTransport_Bind( ctx.server_socket, PORT );
+  int rc = TCPTransport_Bind( ctx.server_socket, DEV_CONFIG_TCP_SERVER_PORT );
   if ( rc < 0 )
   {
     _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
@@ -279,20 +264,7 @@ static void _state_wait_connecting_event_wait_connection( const app_event_t* eve
     return;
   }
 
-  // ret = TCPTransport_Select( ctx.server_socket, 1000 );
-
-  // if ( ret < 0 )
-  // {
-  //   _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
-  //   return;
-  // }
-  // else if ( ret == 0 )
-  // {
-  //   _send_internal_event( MSG_ID_TCP_SERVER_WAIT_CONNECTION, NULL, 0 );
-  //   return;
-  // }
-
-  ret = TCPTransport_Accept( ctx.server_socket, PORT );
+  ret = TCPTransport_Accept( ctx.server_socket, DEV_CONFIG_TCP_SERVER_PORT );
   if ( ret < 0 )
   {
     _send_internal_event( MSG_ID_TCP_SERVER_CLOSE_SOCKET, NULL, 0 );
@@ -332,7 +304,7 @@ static void _state_working_event_wait_client_data( const app_event_t* event )
     {
       // const size_t payload_size = ret;
       LOG( PRINT_INFO, "Rx: %s, len %d", ctx.payload, ret );
-      /* ToDo parse response */
+      JSONParse( ctx.payload );
     }
     else
     {
@@ -383,8 +355,11 @@ static void _task( void* pv )
 
 /* Public functions -----------------------------------------------------------*/
 
+extern void API_Init( void );
+
 void TCPServer_Init( void )
 {
+  API_Init();
   ctx.client_socket = -1;
   ctx.server_socket = -1;
   ctx.queue = xQueueCreate( 8, sizeof( app_event_t ) );

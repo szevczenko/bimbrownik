@@ -8,4 +8,7 @@
   "editor.insertSpaces": true,
   "cmake.configureOnOpen": false,
   "idf.adapterTargetName": "esp32s2",
+  "files.associations": {
+    "json_parser.h": "c"
+  },
 }

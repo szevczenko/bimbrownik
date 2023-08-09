@@ -9,6 +9,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "mdns_service.h"
 
+#include "app_config.h"
 #include "esp_mac.h"
 #include "mdns.h"
 
@@ -38,12 +39,6 @@ static inline char* gen_mac_str( const uint8_t* mac, char* pref, char* mac_str )
   return mac_str;
 }
 
-static inline char* gen_id_str( char* service_name, char* slave_id_str )
-{
-  sprintf( slave_id_str, "%s%02X%02X%02X%02X", service_name, MB_ID2STR( MB_DEVICE_ID ) );
-  return slave_id_str;
-}
-
 /* Public functions ---------------------------------------------------------*/
 void mDNS_Start( void )
 {
@@ -55,7 +50,7 @@ void mDNS_Start( void )
   ESP_ERROR_CHECK( mdns_init() );
   //set mDNS hostname (required if you want to advertise services)
   ESP_ERROR_CHECK( mdns_hostname_set( hostname ) );
-  LOG( "mdns hostname set to: [%s]", hostname );
+  LOG( PRINT_INFO, "mdns hostname set to: [%s]", hostname );
 
   //set default mDNS instance name
   ESP_ERROR_CHECK( mdns_instance_name_set( "bimbrownik" ) );
@@ -66,11 +61,9 @@ void mDNS_Start( void )
   };
 
   //initialize service
-  ESP_ERROR_CHECK( mdns_service_add( "ESP32-WebServer", "_http", "_tcp", 80, serviceTxtData, 1 ) );
+  ESP_ERROR_CHECK( mdns_service_add( "Bimbrownik TCP Server", "_remote", "_tcp", DEV_CONFIG_TCP_SERVER_PORT, serviceTxtData, 1 ) );
   //add mac key string text item
-  ESP_ERROR_CHECK( mdns_service_txt_item_set( "_http", "_tcp", "mac", gen_mac_str( sta_mac, "\0", temp_str ) ) );
-  //add slave id key txt item
-  ESP_ERROR_CHECK( mdns_service_txt_item_set( "_http", "_tcp", "mb_id", gen_id_str( "\0", temp_str ) ) );
+  ESP_ERROR_CHECK( mdns_service_txt_item_set( "_remote", "_tcp", "mac", gen_mac_str( sta_mac, "\0", temp_str ) ) );
 }
 
 void mDNS_Stop( void )

@@ -21,17 +21,9 @@
 #define CONFIG_DEBUG_TCP_SERVER      1
 #define CONFIG_DEBUG_TCP_TRANSPORT   1
 
-/////////////////////  CONFIG PERIPHERALS  ////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////
-// CONSOLE
-#define CONFIG_CONSOLE_VSNPRINTF_BUFF_SIZE 64
-#define CONFIG_USE_CONSOLE_TELNET          1
-#define CONFIG_CONSOLE_SERIAL_SPEED        115200
+//////////////  CONFIG MODULES  //////////////////
+#define DEV_CONFIG_TCP_SERVER_PORT 1234
 
-///////////////////////////////////////////////////////////////////////////////////////////
-//// LED
-
-//////////////////////////////////////  END  //////////////////////////////////////////////
 
 #define NORMALPRIOR 5
 
@@ -59,7 +51,6 @@
 
 #define CONFIG_BUFF_SIZE 512
 #define ESP_OK           0
-#define TIME_IMMEDIATE   0
 #define NORMALPRIO       5
 
 #define MS2ST( ms )   pdMS_TO_TICKS( ms )
