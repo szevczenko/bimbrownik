@@ -54,9 +54,13 @@ json_parser_ctx_t ctx;
 
 static json_parse_method_t* _GetMethod( lwjson_token_t* token )
 {
+  if ( token->type != LWJSON_TYPE_OBJECT )
+  {
+    return NULL;
+  }
   for ( size_t i = 0; i < ctx.methods_length; i++ )
   {
-    if ( ( token->type == LWJSON_TYPE_OBJECT ) && ( 0 == strncmp( ctx.methods[i].name, token->token_name, token->token_name_len ) ) )
+    if ( 0 == strncmp( ctx.methods[i].name, token->token_name, token->token_name_len ) )
     {
       return &ctx.methods[i];
     }
@@ -65,7 +69,17 @@ static json_parse_method_t* _GetMethod( lwjson_token_t* token )
   return NULL;
 }
 
-static bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* method )
+static bool _GetIterator( lwjson_token_t* token, uint32_t* iterator )
+{
+  if ( ( token->type == LWJSON_TYPE_NUM_INT ) && ( 0 == strncmp( "i", token->token_name, token->token_name_len ) ) )
+  {
+    *iterator = lwjson_get_val_int( token );
+    return true;
+  }
+  return false;
+}
+
+static bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* method, uint32_t iterator )
 {
   bool result = false;
   for ( size_t i = 0; i < method->tokens_length; i++ )
@@ -77,42 +91,42 @@ static bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* 
         case LWJSON_TYPE_TRUE:
           if ( method->tokens[i].bool_cb != NULL )
           {
-            result = method->tokens[i].bool_cb( true );
+            result = method->tokens[i].bool_cb( true, iterator );
           }
           break;
 
         case LWJSON_TYPE_FALSE:
           if ( method->tokens[i].bool_cb != NULL )
           {
-            result = method->tokens[i].bool_cb( false );
+            result = method->tokens[i].bool_cb( false, iterator );
           }
           break;
 
         case LWJSON_TYPE_NUM_INT:
           if ( method->tokens[i].int_cb != NULL )
           {
-            result = method->tokens[i].int_cb( token->u.num_int );
+            result = method->tokens[i].int_cb( token->u.num_int, iterator );
           }
           break;
 
         case LWJSON_TYPE_NUM_REAL:
           if ( method->tokens[i].double_cb != NULL )
           {
-            result = method->tokens[i].double_cb( token->u.num_real );
+            result = method->tokens[i].double_cb( token->u.num_real, iterator );
           }
           break;
 
         case LWJSON_TYPE_STRING:
           if ( method->tokens[i].string_cb != NULL )
           {
-            result = method->tokens[i].string_cb( token->u.str.token_value, token->u.str.token_value_len );
+            result = method->tokens[i].string_cb( token->u.str.token_value, token->u.str.token_value_len, iterator );
           }
           break;
 
         case LWJSON_TYPE_NULL:
           if ( method->tokens[i].null_cb != NULL )
           {
-            result = method->tokens[i].null_cb();
+            result = method->tokens[i].null_cb( iterator );
           }
           break;
 
@@ -128,7 +142,7 @@ static bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* 
   }
   if ( token->next != NULL )
   {
-    result |= _ParseTokensFromMethod( token->next, method );
+    result |= _ParseTokensFromMethod( token->next, method, iterator );
   }
   return result;
 }
@@ -137,7 +151,7 @@ static bool _ParseTokensFromMethod( lwjson_token_t* token, json_parse_method_t* 
 
 bool JSONParse( const char* json_string )
 {
-  assert(json_string);
+  assert( json_string );
   bool result = false;
   /* Initialize and pass statically allocated tokens */
   lwjson_init( &ctx.lwjson, ctx.tokens, LWJSON_ARRAYSIZE( ctx.tokens ) );
@@ -158,16 +172,35 @@ bool JSONParse( const char* json_string )
     }
 
     /* Now print all keys in the object */
+    json_parse_method_t* method = NULL;
+    lwjson_token_t* method_token = NULL;
+    uint32_t iterator = 0;
+    bool is_iterator_read = false;
     for ( lwjson_token_t* tkn = lwjson_get_first_child( t ); tkn != NULL; tkn = tkn->next )
     {
       LOG( PRINT_DEBUG, "Token: %.*s", (int) tkn->token_name_len, tkn->token_name );
-      json_parse_method_t* method = _GetMethod( tkn );
-      if ( method != NULL )
+      if ( method == NULL )
       {
-        lwjson_token_t* child_token = lwjson_get_first_child( tkn );
-        LOG( PRINT_DEBUG, "Child token name: %s", child_token->token_name );
-        result = _ParseTokensFromMethod( child_token, method );
+        method = _GetMethod( tkn );
+        if ( method != NULL )
+        {
+          method_token = lwjson_get_first_child( tkn );
+        }
+        continue;
       }
+      if ( is_iterator_read == false )
+      {
+        if ( is_iterator_read = _GetIterator( tkn, &iterator ) )
+        {
+          continue;
+        }
+      }
+    }
+
+    if ( method != NULL && method_token != NULL )
+    {
+      LOG( PRINT_DEBUG, "Child token name: %s", method_token->token_name );
+      result = _ParseTokensFromMethod( method_token, method, iterator );
     }
 
     /* Call this when not used anymore */

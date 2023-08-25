@@ -8,6 +8,7 @@ static double test_double;
 static char test_string[128];
 static size_t test_string_len;
 static bool test_null;
+static uint32_t test_iterator_value;
 
 TEST_GROUP( JsonParser );
 
@@ -25,33 +26,38 @@ TEST_TEAR_DOWN( JsonParser )
 {
 }
 
-static bool _bool_cb( bool value )
+static bool _bool_cb( bool value, uint32_t iterator )
 {
   test_bool = value;
+  TEST_ASSERT_EQUAL( test_iterator_value, iterator );
   return true;
 }
 
-static bool _int_cb( int value )
+static bool _int_cb( int value, uint32_t iterator )
 {
   test_int = value;
+  TEST_ASSERT_EQUAL( test_iterator_value, iterator );
   return true;
 }
 
-static bool _double_cb( double value )
+static bool _double_cb( double value, uint32_t iterator )
 {
   test_double = value;
+  TEST_ASSERT_EQUAL( test_iterator_value, iterator );
   return true;
 }
 
-static bool _string_cb( const char* str, size_t str_len )
+static bool _string_cb( const char* str, size_t str_len, uint32_t iterator )
 {
   strncpy( test_string, str, str_len );
+  TEST_ASSERT_EQUAL( test_iterator_value, iterator );
   return true;
 }
 
-static bool _null_cb( void )
+static bool _null_cb( uint32_t iterator )
 {
   test_null = true;
+  TEST_ASSERT_EQUAL( test_iterator_value, iterator );
   return true;
 }
 
@@ -69,7 +75,8 @@ TEST( JsonParser, JsonParserParseString )
     { .null_cb = _null_cb,
      .name = "null"  },
   };
-  const char* test_string = "{\"set\":{\"bool\":true, \"int\":123, \"double\":1.123, \"string\":\"test_value\", \"null\": null}}";
+  test_iterator_value = 123;
+  const char* test_string = "{\"set\":{\"bool\":true, \"int\":123, \"double\":1.123, \"string\":\"test_value\", \"null\": null}, \"i\":123}";
   TEST_ASSERT_EQUAL( true, JSONParser_RegisterMethod( token, sizeof( token ) / sizeof( token[0] ), "set" ) );
   TEST_ASSERT_EQUAL( true, JSONParse( test_string ) );
   TEST_ASSERT_EQUAL( true, test_bool );

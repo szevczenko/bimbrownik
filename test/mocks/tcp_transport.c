@@ -45,13 +45,13 @@ int TCPTransport_CreateSocket( void )
   return rc;
 }
 
-int TCPTransport_Bind( int socket )
+int TCPTransport_Bind( int socket, uint16_t port )
 {
   struct sockaddr_in servAddr;
   int optval = 1;
   servAddr.sin_family = AF_INET;
   servAddr.sin_addr.s_addr = INADDR_ANY;
-  servAddr.sin_port = htons( PORT );
+  servAddr.sin_port = htons( port );
   // setsockopt( socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &optval, sizeof( int ) );
   int rc = bind( socket, (struct sockaddr*) &servAddr, sizeof( struct sockaddr ) );
   if ( rc < 0 )
@@ -108,12 +108,12 @@ int TCPTransport_Select( int socket, uint32_t timeout_ms )
   return rc;
 }
 
-int TCPTransport_Accept( int socket )
+int TCPTransport_Accept( int socket, uint16_t port )
 {
   struct sockaddr_in servAddr;
   servAddr.sin_family = AF_INET;
   servAddr.sin_addr.s_addr = htonl( INADDR_ANY );
-  servAddr.sin_port = htons( PORT );
+  servAddr.sin_port = htons( port );
   socklen_t len = sizeof( servAddr );
   int rc = 0;
   while ( ( rc = accept( socket, (struct sockaddr*) &servAddr, &len ) ) == -1 && errno == EINTR )

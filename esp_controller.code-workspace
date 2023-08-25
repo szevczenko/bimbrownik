@@ -5,6 +5,9 @@
         },
         {
             "path": "../esp_idf"
+        },
+        {
+            "path": "../../Espressif/frameworks/esp-idf-v5.1"
         }
     ],
     "settings": {

@@ -19,11 +19,11 @@
 /* Public macro --------------------------------------------------------------*/
 
 /* Public types --------------------------------------------------------------*/
-typedef bool ( *method_bool_cb )( bool value );
-typedef bool ( *method_int_cb )( int value );
-typedef bool ( *method_null_cb )( void );
-typedef bool ( *method_double_cb )( double value );
-typedef bool ( *method_string_cb )( const char *str, size_t str_len );
+typedef bool ( *method_bool_cb )( bool value, uint32_t iterator );
+typedef bool ( *method_int_cb )( int value, uint32_t iterator );
+typedef bool ( *method_null_cb )( uint32_t iterator );
+typedef bool ( *method_double_cb )( double value, uint32_t iterator );
+typedef bool ( *method_string_cb )( const char* str, size_t str_len, uint32_t iterator );
 
 typedef struct
 {

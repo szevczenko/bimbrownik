@@ -10,14 +10,16 @@
 
 #include "temperature.h"
 
+#include "app_config.h"
 #include "app_events.h"
 #include "app_manager.h"
 #include "app_timers.h"
-#include "app_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "ow/devices/ow_device_ds18x20.h"
 #include "ow/ow.h"
 #include "ow_esp32.h"
@@ -34,7 +36,10 @@
 #define LOG( PRINT_INFO, ... )
 #endif
 
-#define CONFIG_THD_SIZE 4096
+#define CONFIG_THD_SIZE   4096
+#define STORAGE_NAMESPACE "storage"
+#define STORAGE_BLOB_NAME "temperature"
+#define SENSORS_COUNT     5
 
 /* Private types -------------------------------------------------------------*/
 
@@ -59,11 +64,13 @@ typedef struct
 {
   drv_state_t state;
   ow_t ow;
-  ow_rom_t rom_ids[10];
+  ow_rom_t rom_ids[SENSORS_COUNT];
   size_t rom_found;
   float avg_temp;
   size_t avg_temp_count;
   QueueHandle_t queue;
+
+  bool is_ready_to_work;
 } drv_ctx_t;
 
 typedef enum
@@ -196,6 +203,85 @@ static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t da
   TemperaturePostMsg( &event );
 }
 
+static bool _save_sensors( void )
+{
+  nvs_handle_t my_handle;
+  esp_err_t err;
+
+  err = nvs_open( STORAGE_NAMESPACE, NVS_READWRITE, &my_handle );
+  if ( err != ESP_OK )
+  {
+    return false;
+  }
+
+  err = nvs_set_blob( my_handle, STORAGE_BLOB_NAME, (void*) ctx.rom_ids, ARRAY_SIZE( ctx.rom_ids ) );
+  if ( err != ESP_OK )
+  {
+    nvs_close( my_handle );
+    return false;
+  }
+
+  err = nvs_commit( my_handle );
+  if ( err != ESP_OK )
+  {
+    nvs_close( my_handle );
+    return false;
+  }
+  nvs_close( my_handle );
+  return true;
+}
+
+static bool _read_sensors( void )
+{
+  nvs_handle_t my_handle;
+  esp_err_t err;
+
+  err = nvs_open( STORAGE_NAMESPACE, NVS_READWRITE, &my_handle );
+  if ( err != ESP_OK )
+  {
+    return false;
+  }
+
+  err = nvs_get_blob( my_handle, STORAGE_BLOB_NAME, (void*) ctx.rom_ids, ARRAY_SIZE( ctx.rom_ids ) );
+  nvs_close( my_handle );
+  if ( err != ESP_OK )
+  {
+    return false;
+  }
+  return true;
+}
+
+static bool _check_read_sensors( void )
+{
+  ow_rom_t scan_rom_ids[SENSORS_COUNT];
+  memset( scan_rom_ids, sizeof( scan_rom_ids ), 0xff );
+  if ( owOK != ow_search_devices( &ctx.ow, scan_rom_ids, OW_ARRAYSIZE( scan_rom_ids ), &ctx.rom_found ) )
+  {
+    return false;
+  }
+  LOG( PRINT_INFO, "Devices scanned, found %d devices!\r\n", (int) ctx.rom_found );
+  if ( ctx.rom_found != SENSORS_COUNT )
+  {
+    return false;
+  }
+  for ( int i = 0; i < SENSORS_COUNT; i++ )
+  {
+    bool is_sensor_in_list = false;
+    for ( int j = 0; j < SENSORS_COUNT; j++ )
+    {
+      if ( ctx.rom_ids[i] == scan_rom_ids[j] )
+      {
+        is_sensor_in_list = true;
+        break;
+      }
+    }
+    if ( is_sensor_in_list == false )
+    {
+      return false;
+    }
+  }
+}
+
 static void _timeout_scan_cb( TimerHandle_t xTimer )
 {
   // _send_internal_event( MSG_ID_WIFI_TIMEOUT_CONNECT, NULL, 0 );
@@ -221,7 +307,14 @@ static void _state_common_event_deinit_request( const app_event_t* event )
 static void _state_init_event_init_request( const app_event_t* event )
 {
   temp_drv_err_t err = TEMP_DRV_ERR_OK;
-  if ( owOK != ow_init( &ctx.ow, &ow_ll_drv_esp32, NULL ) )
+  if ( owOK == ow_init( &ctx.ow, &ow_ll_drv_esp32, NULL ) )
+  {
+    if ( _read_sensors() )
+    {
+      ctx.is_ready_to_work = _check_read_sensors();
+    }
+  }
+  else
   {
     err = TEMP_DRV_ERR_FAIL;
     LOG( PRINT_ERROR, "Init one wire driver failed" );
@@ -240,7 +333,15 @@ static void _state_init_event_init_response( const app_event_t* event )
   AppManagerPostMsg( &response );
   if ( TEMP_DRV_ERR_OK == err )
   {
-    _change_state( IDLE );
+    if ( ctx.is_ready_to_work )
+    {
+      _change_state( WORKING );
+      AppTimerStart( timers, TIMER_ID_MEASURE_REQ );
+    }
+    else
+    {
+      _change_state( IDLE );
+    }
   }
   else
   {
@@ -265,7 +366,8 @@ static void _state_idle_event_start_measure( const app_event_t* event )
 static void _state_scanning_event_scan_devices_req( const app_event_t* event )
 {
   temp_drv_err_t err = TEMP_DRV_ERR_OK;
-  if ( owOK == ow_search_devices( &ctx.ow, ctx.rom_ids, OW_ARRAYSIZE( ctx.rom_ids ), &ctx.rom_found ) )
+  ow_rom_t scan_rom_ids[SENSORS_COUNT] = {};
+  if ( owOK == ow_search_devices( &ctx.ow, scan_rom_ids, OW_ARRAYSIZE( scan_rom_ids ), &ctx.rom_found ) )
   {
     temp_drv_err_t err = TEMP_DRV_ERR_FAIL;
     LOG( PRINT_INFO, "Devices scanned, found %d devices!\r\n", (int) ctx.rom_found );
