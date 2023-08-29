@@ -1,0 +1,8 @@
+TODO
+add to json_parser start method and get response. JSONParse should return error_code. {"error":0, "msg":"ok", "i":123}
+add different api folder and files: api_temp_sensors, ... . api.c should connect and init all files.
+add file with error_codes
+add OTA
+
+Done:
+add in API parsing iterator method

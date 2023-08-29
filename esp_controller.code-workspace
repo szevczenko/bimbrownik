@@ -110,11 +110,18 @@
             "esp_event.h": "c",
             "esp_netif.h": "c",
             "xiosbase": "c",
-            "ow.h": "c",
-            "uart_ll.h": "c",
-            "mdns.h": "c",
-            "mdns_service.h": "c",
-            "tcp_server.h": "c"
+            "deque": "c",
+            "format": "c",
+            "forward_list": "c",
+            "initializer_list": "c",
+            "list": "c",
+            "map": "c",
+            "regex": "c",
+            "set": "c",
+            "unordered_map": "c",
+            "unordered_set": "c",
+            "xhash": "c",
+            "xtree": "c"
         },
         "cSpell.words": [
             "Dmytro",

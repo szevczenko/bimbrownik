@@ -32,7 +32,7 @@
 
 /* Private functions declaration ---------------------------------------------*/
 
-static bool _set_temperature_sensor( int sensor_number );
+static bool _set_temperature_sensor( int sensor_number, uint32_t iterator );
 
 /* Private variables ---------------------------------------------------------*/
 
@@ -43,7 +43,7 @@ static json_parse_token_t temperature_sensor_tokens[] = {
 
 /* Private functions ---------------------------------------------------------*/
 
-static bool _set_temperature_sensor( int sensor_number )
+static bool _set_temperature_sensor( int sensor_number, uint32_t iterator )
 {
   LOG( PRINT_INFO, "%s %d", __func__, sensor_number );
   return true;

@@ -304,6 +304,7 @@ static void _state_working_event_wait_client_data( const app_event_t* event )
     {
       // const size_t payload_size = ret;
       LOG( PRINT_INFO, "Rx: %s, len %d", ctx.payload, ret );
+      /* TODO: Send error if cannot parse */
       JSONParse( ctx.payload );
     }
     else
