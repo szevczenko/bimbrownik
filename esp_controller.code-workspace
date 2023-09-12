@@ -14,7 +14,7 @@
         "idf.customExtraVars": "",
         "terminal.integrated.env.windows": {
             "IDF_PATH": "${workspaceFolder}/../esp_tools/esp_idf",
-            "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/esp_idf;C:\\cygwin64\\bin",
+            "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/esp_idf;C:\\msys64\\usr\\bin",
             "OPENOCD_SCRIPTS": "${workspaceFolder}/../esp_tools/tools/openocd-esp32/v0.11.0-esp32-20220706/openocd-esp32/share/openocd/scripts",
             "CHERE_INVOKING": "1",
             "PYTHONNOUSERSITE": "True"
@@ -121,7 +121,9 @@
             "unordered_map": "c",
             "unordered_set": "c",
             "xhash": "c",
-            "xtree": "c"
+            "xtree": "c",
+            "future": "c",
+            "system_error": "c"
         },
         "cSpell.words": [
             "Dmytro",

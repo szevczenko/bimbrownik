@@ -241,10 +241,10 @@ static bool _read_sensors( void )
   {
     return false;
   }
-
-  err = nvs_get_blob( my_handle, STORAGE_BLOB_NAME, (void*) ctx.rom_ids, ARRAY_SIZE( ctx.rom_ids ) );
+  size_t length = 0;
+  err = nvs_get_blob( my_handle, STORAGE_BLOB_NAME, (void*) ctx.rom_ids, &length );
   nvs_close( my_handle );
-  if ( err != ESP_OK )
+  if ( err != ESP_OK || ARRAY_SIZE( ctx.rom_ids ) != length )
   {
     return false;
   }
@@ -254,7 +254,7 @@ static bool _read_sensors( void )
 static bool _check_read_sensors( void )
 {
   ow_rom_t scan_rom_ids[SENSORS_COUNT];
-  memset( scan_rom_ids, sizeof( scan_rom_ids ), 0xff );
+  memset( scan_rom_ids, 0xff, sizeof( scan_rom_ids ) );
   if ( owOK != ow_search_devices( &ctx.ow, scan_rom_ids, OW_ARRAYSIZE( scan_rom_ids ), &ctx.rom_found ) )
   {
     return false;
@@ -269,7 +269,7 @@ static bool _check_read_sensors( void )
     bool is_sensor_in_list = false;
     for ( int j = 0; j < SENSORS_COUNT; j++ )
     {
-      if ( ctx.rom_ids[i] == scan_rom_ids[j] )
+      if ( memcmp( &ctx.rom_ids[i], &scan_rom_ids[j], sizeof( ctx.rom_ids[i] ) ) )
       {
         is_sensor_in_list = true;
         break;
@@ -280,6 +280,7 @@ static bool _check_read_sensors( void )
       return false;
     }
   }
+  return true;
 }
 
 static void _timeout_scan_cb( TimerHandle_t xTimer )

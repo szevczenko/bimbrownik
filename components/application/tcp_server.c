@@ -10,9 +10,12 @@
 
 #include "tcp_server.h"
 
+#include <string.h>
+
 #include "app_config.h"
 #include "app_events.h"
 #include "app_timers.h"
+#include "error_code.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -32,7 +35,10 @@
 #endif
 
 #define PAYLOAD_SIZE                   256
+#define MESSAGE_SIZE                   224
 #define CONFIG_TCPIP_EVENT_THD_WA_SIZE 4096
+#define MAGIC_WORD                     0xDEADBEAF
+#define HEADER_OFFSET                  8
 
 /** @brief  Array with defined states */
 #define STATE_HANDLER_ARRAY                                      \
@@ -57,7 +63,9 @@ typedef struct
   int server_socket;
   int client_socket;
   bool ethernet_is_connected;
-  char payload[PAYLOAD_SIZE];
+  uint8_t payload[PAYLOAD_SIZE];
+  char response[PAYLOAD_SIZE];
+  char message[MESSAGE_SIZE];
   QueueHandle_t queue;
   //   keepAlive_t keepAlive;
 } module_context_t;
@@ -65,6 +73,11 @@ typedef struct
 /* Private variables ---------------------------------------------------------*/
 
 static module_context_t ctx;
+static const uint32_t magic_word = MAGIC_WORD;
+
+/* Extern funxtions ---------------------------------------------------------*/
+
+extern void API_Init( void );
 
 /* Private functions declaration ---------------------------------------------*/
 
@@ -160,6 +173,62 @@ static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t da
   }
 
   TCPServer_PostMsg( &event );
+}
+
+static uint32_t _prepare_response( error_code_t code, uint32_t iterator, const char* msg )
+{
+  int len = 0;
+  if ( code == ERROR_CODE_OK_NO_ACK || strlen( msg ) == 0 )
+  {
+    len = snprintf( &ctx.response[HEADER_OFFSET], sizeof( ctx.response ) - HEADER_OFFSET, "{\"error\":%d,\"error_str\":\"%s\",\"i\":%lu}", code, ErrorCode_GetStr( code ), iterator );
+  }
+  else
+  {
+    len = snprintf( &ctx.response[HEADER_OFFSET], sizeof( ctx.response ) - HEADER_OFFSET, "{\"error\":%d,\"error_str\":\"%s\",\"msg\":%s,\"i\":%lu}", code, ErrorCode_GetStr( code ), msg, iterator );
+  }
+
+  if ( len <= 0 )
+  {
+    return 0;
+  }
+  uint32_t json_len = len;
+  memcpy( ctx.response, &magic_word, sizeof( magic_word ) );
+  memcpy( &ctx.response[4], &json_len, sizeof( json_len ) );
+  return json_len + HEADER_OFFSET;
+}
+
+static void _parse_data( uint8_t* data, size_t len )
+{
+  uint32_t json_length = 0;
+  for ( size_t i = 0; i < len; i++ )
+  {
+    if ( ( len - i ) < HEADER_OFFSET )
+    {
+      break;
+    }
+
+    uint8_t* data_pointer = &data[i];
+    if ( 0 != memcmp( data_pointer, &magic_word, sizeof( magic_word ) ) )
+    {
+      continue;
+    }
+
+    data_pointer += sizeof( magic_word );
+    memcpy( &json_length, data_pointer, sizeof( json_length ) );
+    if ( json_length + i > len )
+    {
+      continue;
+    }
+    data_pointer += sizeof( json_length );
+    uint32_t iterator = 0;
+    error_code_t code = JSONParse( (const char*) data_pointer, (size_t) json_length, &iterator, ctx.message, sizeof( ctx.message ) );
+    uint32_t response_len = _prepare_response( code, iterator, ctx.message );
+    i += HEADER_OFFSET + json_length - 1;
+    if ( response_len > 0 )
+    {
+      TCPServer_SendData( (uint8_t*) ctx.response, response_len );
+    }
+  }
 }
 
 /* Sate machine functions ---------------------------------------------------*/
@@ -299,13 +368,12 @@ static void _state_working_event_wait_client_data( const app_event_t* event )
   }
   else if ( ret > 0 )
   {
-    ret = TCPTransport_Read( ctx.client_socket, (uint8_t*) ctx.payload, PAYLOAD_SIZE );
+    ret = TCPTransport_Read( ctx.client_socket, ctx.payload, PAYLOAD_SIZE );
     if ( ret > 0 )
     {
       // const size_t payload_size = ret;
-      LOG( PRINT_INFO, "Rx: %s, len %d", ctx.payload, ret );
-      /* TODO: Send error if cannot parse */
-      JSONParse( ctx.payload );
+      LOG( PRINT_DEBUG, "Rx: %s, len %d", ctx.payload, ret );
+      _parse_data( ctx.payload, ret );
     }
     else
     {
@@ -355,8 +423,6 @@ static void _task( void* pv )
 }
 
 /* Public functions -----------------------------------------------------------*/
-
-extern void API_Init( void );
 
 void TCPServer_Init( void )
 {

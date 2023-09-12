@@ -93,7 +93,8 @@ PROJECT_BUILD_DIR := $(BUILD_DIR)/project
 PROJECT_DIR := $(PROJECT_ROOT)
 PROJECT_SRC := $(wildcard $(PROJECT_DIR)/config/*.c) \
 								$(wildcard $(PROJECT_DIR)/utils/lwjson/*.c) \
-								$(PROJECT_DIR)/drivers/json_parser.c
+								$(PROJECT_DIR)/drivers/json_parser.c \
+								$(PROJECT_DIR)/drivers/error_code.c
 
 PROJECT_INCLUDES :=	$(wildcard $(PROJECT_DIR)/application/*.h) \
 										$(wildcard $(PROJECT_DIR)/config/*.h) \

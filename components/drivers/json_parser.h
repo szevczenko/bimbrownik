@@ -14,16 +14,19 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "error_code.h"
 #include "lwjson.h"
 
 /* Public macro --------------------------------------------------------------*/
 
 /* Public types --------------------------------------------------------------*/
-typedef bool ( *method_bool_cb )( bool value, uint32_t iterator );
-typedef bool ( *method_int_cb )( int value, uint32_t iterator );
-typedef bool ( *method_null_cb )( uint32_t iterator );
-typedef bool ( *method_double_cb )( double value, uint32_t iterator );
-typedef bool ( *method_string_cb )( const char* str, size_t str_len, uint32_t iterator );
+typedef void ( *json_parser_cb )( void );
+typedef error_code_t ( *json_parser_get_err_code_cb )( char* response, size_t responseLen );
+typedef void ( *method_bool_cb )( bool value, uint32_t iterator );
+typedef void ( *method_int_cb )( int value, uint32_t iterator );
+typedef void ( *method_null_cb )( uint32_t iterator );
+typedef void ( *method_double_cb )( double value, uint32_t iterator );
+typedef void ( *method_string_cb )( const char* str, size_t str_len, uint32_t iterator );
 
 typedef struct
 {
@@ -37,8 +40,10 @@ typedef struct
 
 /* Public functions ----------------------------------------------------------*/
 
-bool JSONParse( const char* json_string );
+error_code_t JSONParse( const char* json_string, size_t jsonLen, uint32_t* iterator, char *response, size_t responseLen );
 
-bool JSONParser_RegisterMethod( json_parse_token_t* tokens, size_t tokens_length, const char* method_name );
+bool JSONParser_RegisterMethod( json_parse_token_t* tokens, size_t tokens_length, const char* method_name, json_parser_cb init_cb, json_parser_get_err_code_cb get_error_code_cb );
+
+void JSONParser_Init( void );
 
 #endif
