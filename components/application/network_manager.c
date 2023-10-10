@@ -260,6 +260,8 @@ static void _state_idle_event_wifi_connect_status( const app_event_t* event )
     assert( 0 );
   }
   TCPServer_PostMsg( &event_send );
+  extern void OTA_Init( void );
+  OTA_Init();
 }
 
 static void _task( void* pv )

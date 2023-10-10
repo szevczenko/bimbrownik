@@ -123,7 +123,10 @@
             "xhash": "c",
             "xtree": "c",
             "future": "c",
-            "system_error": "c"
+            "system_error": "c",
+            "esp_http_client.h": "c",
+            "esp_efuse.h": "c",
+            "esp_ota_ops.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

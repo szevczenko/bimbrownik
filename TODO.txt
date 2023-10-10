@@ -2,6 +2,7 @@ TODO:
 add TCP server keepAlive
 add save and read config
 add mechanism to write serial number
+add to config init nvs and check status init
 add OTA
 
 Done:
