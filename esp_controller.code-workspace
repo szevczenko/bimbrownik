@@ -126,10 +126,18 @@
             "system_error": "c",
             "esp_http_client.h": "c",
             "esp_efuse.h": "c",
-            "esp_ota_ops.h": "c"
+            "esp_ota_ops.h": "c",
+            "esp_tls.h": "c",
+            "compare": "c",
+            "tuple": "c",
+            "type_traits": "c",
+            "utility": "c",
+            "netfwd": "c",
+            "bitset": "c"
         },
         "cSpell.words": [
             "Dmytro",
+            "lwjson",
             "Shevchenko"
         ],
     }
