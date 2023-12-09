@@ -133,7 +133,16 @@
             "type_traits": "c",
             "utility": "c",
             "netfwd": "c",
-            "bitset": "c"
+            "bitset": "c",
+            "esp_https_ota.h": "c",
+            "ota_parser.h": "c",
+            "sockets.h": "c",
+            "typeinfo": "c",
+            "*.tcc": "c",
+            "sstream": "c",
+            "esp_crt_bundle.h": "c",
+            "esp_rom_gpio.h": "c",
+            "*.inc": "c"
         },
         "cSpell.words": [
             "Dmytro",

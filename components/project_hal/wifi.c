@@ -270,7 +270,6 @@ static void _print_cipher_type( int pairwise_cipher, int group_cipher )
 wifi_err_t WiFiInitAccessPoint( const char* name )
 {
   /* Nadawanie nazwy WiFi Access point oraz przypisanie do niego mac adresu */
-  nvs_flash_init();
   uint8_t mac[6];
   esp_efuse_mac_get_default( mac );
   strcpy( (char*) wifi_config_ap.ap.ssid, name );
@@ -310,7 +309,6 @@ wifi_err_t WiFiInitAccessPoint( const char* name )
 
 wifi_err_t WiFiInitSTA( void )
 {
-  nvs_flash_init();
   vSemaphoreCreateBinary( ctx.wps_wait );
   assert( ctx.wps_wait );
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();

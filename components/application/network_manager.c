@@ -18,6 +18,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "ota.h"
 #include "tcp_server.h"
 #include "wifidrv.h"
 
@@ -245,23 +246,25 @@ static void _state_idle_event_wifi_connect_status( const app_event_t* event )
     return;
   }
 
-  app_event_t event_send = { 0 };
+  app_event_t tcp_event = { 0 };
+  app_event_t ota_event = { 0 };
 
   if ( err == WIFI_DRV_ERR_CONNECTED )
   {
-    AppEventPrepareNoData( &event_send, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+    AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+    AppEventPrepareNoData( &ota_event, MSG_ID_OTA_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_OTA );
   }
   else if ( err == WIFI_DRV_ERR_DISCONNECTED )
   {
-    AppEventPrepareNoData( &event_send, MSG_ID_TCP_SERVER_ETHERNET_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+    AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+    AppEventPrepareNoData( &ota_event, MSG_ID_OTA_STOP_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_OTA );
   }
   else
   {
     assert( 0 );
   }
-  TCPServer_PostMsg( &event_send );
-  extern void OTA_Init( void );
-  OTA_Init();
+  TCPServer_PostMsg( &tcp_event );
+  OTA_PostMsg( &ota_event );
 }
 
 static void _task( void* pv )

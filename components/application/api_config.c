@@ -10,6 +10,8 @@
 #include <string.h>
 
 #include "app_config.h"
+#include "dev_config.h"
+#include "esp_app_desc.h"
 #include "json_parser.h"
 
 /* Private macros ------------------------------------------------------------*/
@@ -29,7 +31,9 @@
 
 static error_code_t _get_config( char* response, size_t responseLen )
 {
-  snprintf( response, responseLen - 1, "{\"sw\":\"0.0.1\",\"hw\":\"0.1\",\"sn\":\"1\"}" );
+  const esp_app_desc_t* info = esp_app_get_description();
+  uint32_t sn = DevConfig_GetSerialNumber();
+  snprintf( response, responseLen - 1, "{\"sw\":\"%s\",\"project\":\"AAD\",\"sn\":\"%.6ld\"}", info->version, sn );
   return ERROR_CODE_OK;
 }
 

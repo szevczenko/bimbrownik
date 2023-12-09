@@ -4,16 +4,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#include "configCmd.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-
-#define STORAGE_NAMESPACE "ESP32_CONFIG"
-
-#define START_CONFIG 0xDEADBEAF
-#define END_CONFIG   0xBEAFDEAD
 
 static const char* error_lvl_str[] =
   {
@@ -21,14 +15,6 @@ static const char* error_lvl_str[] =
     [PRINT_INFO] = "INFO: ",
     [PRINT_WARNING] = "WARNING: ",
     [PRINT_ERROR] = "ERROR: " };
-
-config_t config =
-  {
-    .start_config = START_CONFIG,
-    .hw_ver = BOARD_VERSION,
-    .sw_ver = SOFTWARE_VERSION,
-    .dev_type = DEFAULT_DEV_TYPE,
-    .end_config = END_CONFIG };
 
 static SemaphoreHandle_t mutexSemaphore;
 
@@ -47,28 +33,8 @@ void config_printf( enum config_print_lvl module_lvl, enum config_print_lvl msg_
   }
 }
 
-int verify_config( config_t* conf )
-{
-  return 0;
-}
-
 void configInit( void )
 {
   mutexSemaphore = xSemaphoreCreateBinary();
   xSemaphoreGive( mutexSemaphore );
-}
-
-int configSave( config_t* config )
-{
-  return 0;
-}
-
-int configRead( config_t* config )
-{
-  return 0;
-}
-
-void configRebootToBlt( void )
-{
-  esp_restart();
 }

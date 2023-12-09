@@ -1,12 +1,14 @@
 /**
  *******************************************************************************
- * @file    wifidrv.c
+ * @file    ota.c
  * @author  Dmytro Shevchenko
- * @brief   Wifi Drv
+ * @brief   OTA source file
  *******************************************************************************
  */
 
 /* Includes ------------------------------------------------------------------*/
+
+#include "ota.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -15,20 +17,20 @@
 
 #include "app_config.h"
 #include "app_events.h"
+#include "app_timers.h"
+#include "dev_config.h"
+#include "esp_crt_bundle.h"
 #include "esp_efuse.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
-#include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_tls.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
 #include "freertos/task.h"
-#include "lwjson.h"
-#include "nvs.h"
-#include "nvs_flash.h"
+#include "ota_config.h"
+#include "ota_parser.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[OTA] "
@@ -41,107 +43,209 @@
 #define LOG( PRINT_INFO, ... )
 #endif
 
-#define CONFIG_TCPIP_EVENT_THD_WA_SIZE 4096
-#define OTA_URL_SIZE                   256
-#define OTA_MAX_ARTIFACTS              3
-#define OTA_MAX_CHUNKS                 3
-#define SECURITY_TOKEN                 "d8542ad550fef419a6bf1189babf58ab"
-
-/* Private types -------------------------------------------------------------*/
-typedef enum
-{
-  ELinkTypeConfigData,
-  ELinkTypeDeploymentBase,
-  ELinkTypeLast
-} TLinkType;
-
-typedef enum
-{
-  OTA_DEPLOYMENT_ACTION_FORCED,
-  OTA_DEPLOYMENT_ACTION_SOFT,
-  OTA_DEPLOYMENT_ACTION_DOWNLOAD_ONLY,
-  OTA_DEPLOYMENT_ACTION_TIME_FORCED,
-  OTA_DEPLOYMENT_ACTION_UNKNOWN,
-  OTA_DEPLOYMENT_ACTION_LAST
-} ota_deployment_action_t;
-
-typedef struct
-{
-  char filename[32];
-  /* hashes not used */
-  size_t size;
-  char download_http[OTA_URL_SIZE];
-  /* md5sum-http not used*/
-} ota_artifacts_t;
-
-typedef struct
-{
-  char part[32];
-  char version[32];
-  char name[32];
-  size_t artifactsSize;
-  ota_artifacts_t artifacts[OTA_MAX_CHUNKS];
-} ota_chunk_t;
-
-typedef struct
-{
-  ota_deployment_action_t download;
-  ota_deployment_action_t update;
-  size_t chunkSize;
-  ota_chunk_t chunk[OTA_MAX_ARTIFACTS];
-} ota_deployment_t;
-
 /* Extern variables ----------------------------------------------------------*/
 extern const uint8_t server_cert_pem_start[] asm( "_binary_ca_cert_pem_start" );
 extern const uint8_t server_cert_pem_end[] asm( "_binary_ca_cert_pem_end" );
 
-/* Private variables ---------------------------------------------------------*/
-const char* ota_deployment_action_array[OTA_DEPLOYMENT_ACTION_LAST] =
+/* Private types -------------------------------------------------------------*/
+
+/** @brief  Array with defined states */
+#define STATE_HANDLER_ARRAY                        \
+  STATE( DISABLED, _disabled_state_handler_array ) \
+  STATE( IDLE, _idle_state_handler_array )         \
+  STATE( DOWNLOADED, _downloaded_state_handler_array )
+
+typedef enum
+{
+#define STATE( _state, _event_handler_array ) _state,
+  STATE_HANDLER_ARRAY
+#undef STATE
+    STATE_TOP,
+} module_state_t;
+
+typedef enum
+{
+  OTA_UPDATE_RESULT_NONE,
+  OTA_UPDATE_RESULT_SUCCESS,
+  OTA_UPDATE_RESULT_FAILED
+} ota_update_result_t;
+
+typedef struct
+
+{
+  module_state_t state;
+  QueueHandle_t queue;
+  ota_update_result_t ota_update_result;
+  char update_result_details[256];
+  char action_id[32];
+
+  int file_size;
+  int downloaded_size;
+  uint8_t download_percent;
+
+  char url[256];
+  bool use_tls;
+  char address[OTA_CONFIG_STR_SIZE];
+  char tenant[OTA_CONFIG_STR_SIZE];
+
+} module_ctx_t;
+
+typedef enum
+{
+  TIMER_ID_POLLING,
+  TIMER_ID_LAST
+} timer_id;
+
+/* Private functions declaration ---------------------------------------------*/
+static void _timer_polling( TimerHandle_t xTimer );
+
+static void _state_disabled_init( const app_event_t* event );
+
+static void _state_idle_event_polling( const app_event_t* event );
+static void _state_idle_event_post_config_data( const app_event_t* event );
+static void _state_idle_event_ota_download_image( const app_event_t* event );
+static void _state_idle_event_post_ota_result( const app_event_t* event );
+
+/* Status callbacks declaration. ---------------------------------------------*/
+static const struct app_events_handler _disabled_state_handler_array[] =
   {
-    [OTA_DEPLOYMENT_ACTION_FORCED] = "forced",
-    [OTA_DEPLOYMENT_ACTION_SOFT] = "soft",
-    [OTA_DEPLOYMENT_ACTION_DOWNLOAD_ONLY] = "downloadonly",
-    [OTA_DEPLOYMENT_ACTION_TIME_FORCED] = "timeforced",
+    EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_init ),
 };
 
-static char local_response_buffer[2048];
-static char link_config_data[OTA_URL_SIZE];
-static char link_deployment_base[OTA_URL_SIZE];
-static uint32_t read_link_type;
-static ota_deployment_t ota_deployment;
+static const struct app_events_handler _idle_state_handler_array[] =
+  {
+    EVENT_ITEM( MSG_ID_OTA_POLL_SERVER, _state_idle_event_polling ),
+    EVENT_ITEM( MSG_ID_OTA_POST_CONFIG_DATA, _state_idle_event_post_config_data ),
+    EVENT_ITEM( MSG_ID_OTA_DOWNLOAD_IMAGE, _state_idle_event_ota_download_image ),
+    EVENT_ITEM( MSG_ID_OTA_POST_OTA_RESULT, _state_idle_event_post_ota_result ),
+};
+
+static const struct app_events_handler _downloaded_state_handler_array[] =
+  {
+    EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_idle_event_polling ),
+};
+
+/* Private variables ---------------------------------------------------------*/
+static char localResponseBuffer[2048];
+static char urlConfigData[OTA_URL_SIZE];
+static char urlDeploymentBase[OTA_URL_SIZE];
+static char urlDeploymentBaseFeedback[OTA_URL_SIZE + 16];
+static ota_deployment_t otaDeployment;
+
+static module_ctx_t ctx;
+
+struct state_context
+{
+  const module_state_t state;
+  const char* name;
+  const struct app_events_handler* event_handler_array;
+  uint8_t event_handler_array_size;
+};
+
+static const struct state_context module_state[STATE_TOP] =
+  {
+#define STATE( _state, _event_handler_array )    \
+  {                                              \
+    .state = _state,                             \
+    .name = #_state,                             \
+    .event_handler_array = _event_handler_array, \
+    .event_handler_array_size = ARRAY_SIZE( _event_handler_array ) },
+    STATE_HANDLER_ARRAY
+#undef STATE
+};
+
+static app_timer_t timers[] =
+  {
+    TIMER_ITEM( TIMER_ID_POLLING, _timer_polling, 300000, "AppTimeoutInit" ),
+};
 
 /* Private functions ---------------------------------------------------------*/
+
+static const char* _get_state_name( const module_state_t state )
+{
+  return module_state[state].name;
+}
+
+static void _change_state( module_state_t new_state )
+{
+  LOG( PRINT_INFO, "State: %s -> %s", _get_state_name( ctx.state ), _get_state_name( new_state ) );
+  ctx.state = new_state;
+}
+
+static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t data_size )
+{
+  app_event_t event = {};
+  if ( data_size == 0 )
+  {
+    AppEventPrepareNoData( &event, id, APP_EVENT_OTA, APP_EVENT_OTA );
+  }
+  else
+  {
+    AppEventPrepareWithData( &event, id, APP_EVENT_OTA, APP_EVENT_OTA, data, data_size );
+  }
+
+  OTA_PostMsg( &event );
+}
+
+esp_err_t ota_bundle_attach( void* conf )
+{
+  mbedtls_ssl_config* ssl_conf = (mbedtls_ssl_config*) conf;
+  if ( ssl_conf != NULL )
+  {
+    mbedtls_ssl_conf_authmode( ssl_conf, MBEDTLS_SSL_VERIFY_OPTIONAL );
+  }
+  return esp_crt_bundle_attach( ssl_conf );
+}
+
+bool _find_action_id( const char* str, char* id, size_t id_len )
+{
+  memset( id, 0, id_len );
+  const char* string_search = "deploymentBase/";
+  char* tmp = strstr( str, string_search );
+
+  if ( tmp == NULL )
+  {
+    return false;
+  }
+
+  bool result = false;
+  tmp += strlen( string_search );
+  for ( int i = 0; i < id_len - 1; i++ )
+  {
+    if ( tmp[i] == '/' || tmp[i] == 0 || tmp[i] == '?' )
+    {
+      result = true;
+      break;
+    }
+    id[i] = tmp[i];
+  }
+  printf( id );
+  return result;
+}
+
+static void _timer_polling( TimerHandle_t xTimer )
+{
+  _send_internal_event( MSG_ID_OTA_POLL_SERVER, NULL, 0 );
+}
+
 esp_err_t _http_event_handler( esp_http_client_event_t* evt )
 {
   static char* output_buffer;    // Buffer to store response of http request from event handler
   static int output_len;    // Stores number of bytes read
   switch ( evt->event_id )
   {
-    case HTTP_EVENT_ERROR:
-      LOG( PRINT_DEBUG, "HTTP_EVENT_ERROR" );
-      break;
-    case HTTP_EVENT_ON_CONNECTED:
-      LOG( PRINT_DEBUG, "HTTP_EVENT_ON_CONNECTED" );
-      break;
-    case HTTP_EVENT_HEADER_SENT:
-      LOG( PRINT_DEBUG, "HTTP_EVENT_HEADER_SENT" );
-      break;
     case HTTP_EVENT_ON_HEADER:
       LOG( PRINT_DEBUG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value );
       break;
     case HTTP_EVENT_ON_DATA:
       LOG( PRINT_DEBUG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len );
-      /*
-             *  Check for chunked encoding is added as the URL for chunked encoding used in this example returns binary data.
-             *  However, event handler can also be used in case chunked encoding is used.
-             */
       if ( !esp_http_client_is_chunked_response( evt->client ) )
       {
         // If user_data buffer is configured, copy the response into the buffer
         int copy_len = 0;
         if ( evt->user_data )
         {
-          copy_len = MIN( evt->data_len, ( sizeof( local_response_buffer ) - output_len ) );
+          copy_len = MIN( evt->data_len, ( sizeof( localResponseBuffer ) - output_len ) );
           if ( copy_len )
           {
             memcpy( evt->user_data + output_len, evt->data, copy_len );
@@ -168,14 +272,11 @@ esp_err_t _http_event_handler( esp_http_client_event_t* evt )
         }
         output_len += copy_len;
       }
-
       break;
     case HTTP_EVENT_ON_FINISH:
       LOG( PRINT_DEBUG, "HTTP_EVENT_ON_FINISH" );
       if ( output_buffer != NULL )
       {
-        // Response is accumulated in output_buffer. Uncomment the below line to print the accumulated response
-        // ESP_LOG_BUFFER_HEX(TAG, output_buffer, output_len);
         free( output_buffer );
         output_buffer = NULL;
       }
@@ -202,6 +303,9 @@ esp_err_t _http_event_handler( esp_http_client_event_t* evt )
       esp_http_client_set_header( evt->client, "From", "user@example.com" );
       esp_http_client_set_header( evt->client, "Accept", "text/html" );
       esp_http_client_set_redirection( evt->client );
+      break;
+
+    default:
       break;
   }
   return ESP_OK;
@@ -230,16 +334,20 @@ static void _ota_event_handler( void* arg, esp_event_base_t event_base,
         LOG( PRINT_INFO, "Callback to decrypt function" );
         break;
       case ESP_HTTPS_OTA_WRITE_FLASH:
+        ctx.downloaded_size = ( size_t ) * (int*) event_data;
         LOG( PRINT_DEBUG, "Writing to flash: %d written", *(int*) event_data );
+
         break;
       case ESP_HTTPS_OTA_UPDATE_BOOT_PARTITION:
         LOG( PRINT_INFO, "Boot partition updated. Next Partition: %d", *(esp_partition_subtype_t*) event_data );
         break;
       case ESP_HTTPS_OTA_FINISH:
         LOG( PRINT_INFO, "OTA finish" );
+        /*post result*/
         break;
       case ESP_HTTPS_OTA_ABORT:
         LOG( PRINT_INFO, "OTA abort" );
+        /*post result*/
         break;
     }
   }
@@ -259,13 +367,11 @@ static esp_err_t _validate_image_header( esp_app_desc_t* new_app_info )
     LOG( PRINT_INFO, "Running firmware version: %s", running_app_info.version );
   }
 
-#ifndef CONFIG_EXAMPLE_SKIP_VERSION_CHECK
-  if ( memcmp( new_app_info->version, running_app_info.version, sizeof( new_app_info->version ) ) == 0 )
-  {
-    LOG( PRINT_WARNING, "Current running version is the same as a new. We will not continue the update." );
-    return ESP_FAIL;
-  }
-#endif
+  // if ( memcmp( new_app_info->version, running_app_info.version, sizeof( new_app_info->version ) ) == 0 )
+  // {
+  //   LOG( PRINT_WARNING, "Current running version is the same as a new. We will not continue the update." );
+  //   return ESP_FAIL;
+  // }
 
   const uint32_t hw_sec_version = esp_efuse_read_secure_version();
   if ( new_app_info->secure_version < hw_sec_version )
@@ -277,226 +383,97 @@ static esp_err_t _validate_image_header( esp_app_desc_t* new_app_info )
   return ESP_OK;
 }
 
-static esp_err_t _http_client_init_cb( esp_http_client_handle_t http_client )
+static esp_err_t _set_security_token( esp_http_client_handle_t http_client )
 {
-  esp_err_t err = ESP_OK;
-  /* Uncomment to add custom headers to HTTP request */
-  err = esp_http_client_set_header( http_client, "Authorization", "TargetToken " SECURITY_TOKEN );
+  char token[64] = {};
+  char header[13 + sizeof( token )];
+  OTAConfig_GetString( token, OTA_CONFIG_VALUE_TOKEN, sizeof( token ) );
+  sprintf( header, "TargetToken %s", token );
+  esp_err_t err = esp_http_client_set_header( http_client, "Authorization", header );
   return err;
 }
 
-static bool _parse_string( lwjson_token_t* token, const char* strName, char* string, size_t stringSize )
+static esp_err_t _http_client_init_cb( esp_http_client_handle_t http_client )
 {
-  const char* readStr = NULL;
-  size_t readStrSize = 0;
-  if ( token->type == LWJSON_TYPE_STRING && 0 == strncmp( strName, token->token_name, token->token_name_len ) )
-  {
-    readStr = lwjson_get_val_string( token, &readStrSize );
-    if ( readStr == NULL )
-    {
-      LOG( PRINT_ERROR, "Cannot found string %s", strName );
-      return false;
-    }
-
-    if ( readStrSize > stringSize )
-    {
-      LOG( PRINT_ERROR, "Buffer to small for copy link" );
-      return false;
-    }
-
-    memset( string, 0, stringSize );
-    memcpy( string, readStr, readStrSize );
-    return true;
-  }
-  return false;
+  return _set_security_token( http_client );
 }
 
-static bool _get_link( lwjson_token_t* token, const char* linkName, char* link, size_t linkLen )
+static void _set_update_error( void )
 {
-  LOG( PRINT_DEBUG, "Token child: %d %.*s", token->type, (int) token->token_name_len, token->token_name );
-  if ( token->type == LWJSON_TYPE_OBJECT && 0 == strncmp( linkName, token->token_name, token->token_name_len ) )
-  {
-    lwjson_token_t* href = (lwjson_token_t*) lwjson_get_first_child( token );
-    LOG( PRINT_DEBUG, "Token child: %.*s", (int) href->token_name_len, href->token_name );
-    return _parse_string( href, "href", link, linkLen );
-  }
-  return false;
+  LOG( PRINT_ERROR, "%s", ctx.update_result_details );
+  ctx.ota_update_result = OTA_UPDATE_RESULT_FAILED;
+  _send_internal_event( MSG_ID_OTA_POST_OTA_RESULT, NULL, 0 );
 }
 
-static bool _parse_link( const char* json_string )
+esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_method_t method, const char* data, int len, const char* accept )
 {
-  lwjson_token_t tokens[16];
-  lwjson_t lwjson;
-  lwjson_init( &lwjson, tokens, LWJSON_ARRAYSIZE( tokens ) );
+  memset( localResponseBuffer, 0, sizeof( localResponseBuffer ) );
+  esp_http_client_config_t config = {
+    .url = url,
+    .event_handler = _http_event_handler,
+    .user_data = localResponseBuffer,    // Pass address of local buffer to get response
+    .disable_auto_redirect = true,
+    .timeout_ms = 3000,
+    .crt_bundle_attach = ota_bundle_attach,
+  };
 
-  read_link_type = 0;
-
-  if ( lwjson_parse_ex( &lwjson, json_string, strlen( json_string ) ) == lwjsonOK )
+  esp_http_client_handle_t client = esp_http_client_init( &config );
+  if ( client == NULL )
   {
-    lwjson_token_t* t;
-
-    /* Get very first token as top object */
-    t = lwjson_get_first_token( &lwjson );
-    if ( t->type != LWJSON_TYPE_OBJECT )
-    {
-      LOG( PRINT_ERROR, "Invalid json" );
-      lwjson_free( &lwjson );
-      return false;
-    }
-
-    for ( lwjson_token_t* tkn = (lwjson_token_t*) lwjson_get_first_child( t ); tkn != NULL; tkn = tkn->next )
-    {
-      LOG( PRINT_DEBUG, "Type %d, Token: %.*s", tkn->type, (int) tkn->token_name_len, tkn->token_name );
-      if ( tkn->type == LWJSON_TYPE_OBJECT && 0 == strncmp( "_links", tkn->token_name, tkn->token_name_len ) )
-      {
-        for ( lwjson_token_t* data = (lwjson_token_t*) lwjson_get_first_child( tkn ); data != NULL; data = data->next )
-        {
-          if ( ( ( read_link_type & ( 1 << ELinkTypeConfigData ) ) == 0 ) && _get_link( data, "configData", link_config_data, sizeof( link_config_data ) ) )
-          {
-            read_link_type |= ( 1 << ELinkTypeConfigData );
-          }
-          if ( ( ( read_link_type & ( 1 << ELinkTypeDeploymentBase ) ) == 0 ) && _get_link( data, "deploymentBase", link_deployment_base, sizeof( link_deployment_base ) ) )
-          {
-            read_link_type |= ( 1 << ELinkTypeDeploymentBase );
-          }
-        }
-      }
-    }
-    lwjson_free( &lwjson );
+    return NULL;
   }
-
-  return true;
-}
-
-static ota_deployment_action_t _get_action_type( const char* action )
-{
-  for ( int i = 0; i < OTA_DEPLOYMENT_ACTION_UNKNOWN; i++ )
+  if ( ESP_OK != esp_http_client_set_method( client, method ) )
   {
-    if ( memcmp( ota_deployment_action_array[i], action, strlen( ota_deployment_action_array[i] ) ) == 0 )
+    goto init_fail;
+  }
+  if ( accept != NULL )
+  {
+    if ( ESP_OK != esp_http_client_set_header( client, "Accept", accept ) )
     {
-      return i;
+      goto init_fail;
     }
   }
-  return OTA_DEPLOYMENT_ACTION_UNKNOWN;
-}
-
-static bool _parse_deployment( const char* json_string, ota_deployment_t* deployment )
-{
-  lwjson_token_t tokens[64];
-  lwjson_t lwjson;
-  lwjson_init( &lwjson, tokens, LWJSON_ARRAYSIZE( tokens ) );
-
-  read_link_type = 0;
-
-  if ( lwjson_parse_ex( &lwjson, json_string, strlen( json_string ) ) == lwjsonOK )
+  if ( ESP_OK != _set_security_token( client ) )
   {
-    lwjson_token_t* t;
-
-    /* Get very first token as top object */
-    t = lwjson_get_first_token( &lwjson );
-    if ( t->type != LWJSON_TYPE_OBJECT )
-    {
-      LOG( PRINT_ERROR, "Invalid json" );
-      lwjson_free( &lwjson );
-      return false;
-    }
-    /* Main object */
-    for ( lwjson_token_t* tkn = (lwjson_token_t*) lwjson_get_first_child( t ); tkn != NULL; tkn = tkn->next )
-    {
-      LOG( PRINT_DEBUG, "Type %d, Token: %.*s", tkn->type, (int) tkn->token_name_len, tkn->token_name );
-      if ( tkn->type == LWJSON_TYPE_OBJECT && 0 == strncmp( "deployment", tkn->token_name, tkn->token_name_len ) )
-      {
-        /* Deployment */
-        for ( lwjson_token_t* child_token = (lwjson_token_t*) lwjson_get_first_child( tkn ); child_token != NULL; child_token = child_token->next )
-        {
-          if ( child_token->type == LWJSON_TYPE_STRING )
-          {
-            char string[32] = {};
-            if ( _parse_string( child_token, "update", string, sizeof( string ) ) )
-            {
-              LOG( PRINT_DEBUG, "update: %s", string );
-              deployment->update = _get_action_type( string );
-              continue;
-            }
-            else if ( _parse_string( child_token, "download", string, sizeof( string ) ) )
-            {
-              LOG( PRINT_DEBUG, "download: %s", string );
-              deployment->download = _get_action_type( string );
-              continue;
-            }
-          }
-          else if ( child_token->type == LWJSON_TYPE_ARRAY && 0 == strncmp( "chunks", child_token->token_name, child_token->token_name_len ) )
-          {
-            uint8_t index = 0;
-            for ( lwjson_token_t* chunk_tkn = (lwjson_token_t*) lwjson_get_first_child( child_token ); chunk_tkn != NULL; chunk_tkn = chunk_tkn->next )
-            {
-              for ( lwjson_token_t* chunk_obj_tkn = (lwjson_token_t*) lwjson_get_first_child( chunk_tkn ); chunk_obj_tkn != NULL; chunk_obj_tkn = chunk_obj_tkn->next )
-              {
-                if ( _parse_string( chunk_obj_tkn, "part", deployment->chunk[index].part, sizeof( deployment->chunk[index].part ) ) )
-                {
-                  LOG( PRINT_DEBUG, "part: %s", deployment->chunk[index].part );
-                }
-                else if ( _parse_string( chunk_obj_tkn, "version", deployment->chunk[index].version, sizeof( deployment->chunk[index].version ) ) )
-                {
-                  LOG( PRINT_DEBUG, "version: %s", deployment->chunk[index].version );
-                }
-                else if ( _parse_string( chunk_obj_tkn, "name", deployment->chunk[index].name, sizeof( deployment->chunk[index].name ) ) )
-                {
-                  LOG( PRINT_DEBUG, "name: %s", deployment->chunk[index].name );
-                }
-                else if ( chunk_obj_tkn->type == LWJSON_TYPE_ARRAY && 0 == strncmp( "artifacts", chunk_obj_tkn->token_name, chunk_obj_tkn->token_name_len ) )
-                {
-                  uint8_t art_index = 0;
-                  for ( lwjson_token_t* art_tkn = (lwjson_token_t*) lwjson_get_first_child( chunk_obj_tkn ); art_tkn != NULL; art_tkn = art_tkn->next )
-                  {
-                    for ( lwjson_token_t* art_obj_tkn = (lwjson_token_t*) lwjson_get_first_child( art_tkn ); art_obj_tkn != NULL; art_obj_tkn = art_obj_tkn->next )
-                    {
-                      if ( _parse_string( art_obj_tkn, "filename", deployment->chunk[index].artifacts[art_index].filename, sizeof( deployment->chunk[index].artifacts[art_index].filename ) ) )
-                      {
-                        LOG( PRINT_DEBUG, "filename: %s", deployment->chunk[index].artifacts[art_index].filename );
-                      }
-                      else if ( art_obj_tkn->type == LWJSON_TYPE_NUM_INT && 0 == strncmp( "size", art_obj_tkn->token_name, art_obj_tkn->token_name_len ) )
-                      {
-                        deployment->chunk[index].artifacts[art_index].size = lwjson_get_val_int( art_obj_tkn );
-                        LOG( PRINT_DEBUG, "size: %d", deployment->chunk[index].artifacts[art_index].size );
-                      }
-                      else if ( art_obj_tkn->type == LWJSON_TYPE_OBJECT && 0 == strncmp( "_links", art_obj_tkn->token_name, art_obj_tkn->token_name_len ) )
-                      {
-                        for ( lwjson_token_t* link = (lwjson_token_t*) lwjson_get_first_child( art_obj_tkn ); link != NULL; link = link->next )
-                        {
-                          _get_link( link, "download-http", deployment->chunk[index].artifacts[art_index].download_http, sizeof( deployment->chunk[index].artifacts[art_index].download_http ) );
-                        }
-                      }
-                    }
-                    art_index++;
-                  }
-                  deployment->chunk[index].artifactsSize = art_index;
-                }
-              }
-              index++;
-            }
-            deployment->chunkSize = index;
-          }
-        }
-      }
-    }
-    lwjson_free( &lwjson );
+    goto init_fail;
   }
-
-  return true;
+  if ( data != NULL )
+  {
+    if ( ESP_OK != esp_http_client_set_header( client, "Content-Type", "application/json" ) || ESP_OK != esp_http_client_set_post_field( client, data, len ) )
+    {
+      goto init_fail;
+    }
+  }
+  return client;
+init_fail:
+  esp_http_client_cleanup( client );
+  return NULL;
 }
 
-static bool _post_config_data( esp_http_client_handle_t client )
+static const char* _get_poll_address( void )
 {
-  LOG( PRINT_INFO, "Link: %s", link_config_data );
-  // POST
-  const char* post_data = "{\"mode\":\"merge\",\"data\":{\"VIN\":\"JH4TB2H26CC000001\", \
-                          \"hwRevision\":\"1\"},\"status\":{\"result\":{\"finished\":\"success\"}, \
-                          \"execution\": \"closed\",\"details\":[]}}";
-  esp_http_client_set_url( client, link_config_data );
-  esp_http_client_set_method( client, HTTP_METHOD_PUT );
-  esp_http_client_set_header( client, "Content-Type", "application/json" );
-  esp_http_client_set_post_field( client, post_data, strlen( post_data ) );
+  OTAConfig_GetBool( &ctx.use_tls, OTA_CONFIG_VALUE_TLS );
+  OTAConfig_GetString( ctx.address, OTA_CONFIG_VALUE_ADDRESS, sizeof( ctx.address ) );
+  OTAConfig_GetString( ctx.tenant, OTA_CONFIG_VALUE_TENANT, sizeof( ctx.tenant ) );
+  uint32_t sn = DevConfig_GetSerialNumber();
+  snprintf( ctx.url, sizeof( ctx.url ), "%s%s/%s/controller/v1/%.6ld", ctx.use_tls ? "https://" : "http://",
+            ctx.address, ctx.tenant, sn );
+  return ctx.url;
+}
+
+static bool _post_ota_result( const char* result, const char* details )
+{
+  char post_data[512] = {};
+  const char* base_url = _get_poll_address();
+  const char* format = "{\"id\":\"%s\",\"status\":{\"result\":{\"finished\":\"%s\"},\"execution\":\"closed\",\"details\":[\"%s\"]}}";
+  snprintf( urlDeploymentBaseFeedback, sizeof( urlDeploymentBaseFeedback ) - 1, "%s/deploymentBase/%s/feedback", base_url, ctx.action_id );
+  snprintf( post_data, sizeof( post_data ) - 1, format, ctx.action_id, result, details );
+
+  esp_http_client_handle_t client = _init_http_client( urlDeploymentBaseFeedback, HTTP_METHOD_POST, post_data, strlen( post_data ), NULL );
+  if ( client == NULL )
+  {
+    return false;
+  }
   esp_err_t err = esp_http_client_perform( client );
   if ( err == ESP_OK )
   {
@@ -507,80 +484,37 @@ static bool _post_config_data( esp_http_client_handle_t client )
   else
   {
     LOG( PRINT_ERROR, "HTTP POST request failed: %s", esp_err_to_name( err ) );
-    return false;
   }
-  return true;
+  esp_http_client_cleanup( client );
+  return err == ESP_OK;
 }
 
-static bool _register_device( void )
+#if 0
+static bool _post_ota_progress( esp_http_client_handle_t client, uint32_t file_size, uint32_t downloaded )
 {
-  esp_http_client_config_t config = {
-    .url = "http://192.168.1.136:8080/default/controller/v1/AAD_000001",
-    .event_handler = _http_event_handler,
-    .user_data = local_response_buffer,    // Pass address of local buffer to get response
-    .disable_auto_redirect = true,
-    .timeout_ms = 3000,
-  };
+  char post_data[512] = {};
+  const char* format = "{\"id\":\"%s\",\"status\":{\"result\":{\"finished\":\"none\",\"progress\":{\"cnt\":%d,\"of\":%d}},\"execution\":\"proceeding\",\"details\":[\"%s\"]}}";
 
-  esp_http_client_handle_t client = esp_http_client_init( &config );
-  esp_http_client_set_header( client, "Authorization", "TargetToken " SECURITY_TOKEN );
-  esp_http_client_set_header( client, "Accept", "application/hal+json" );
+  snprintf( post_data, sizeof( post_data ) - 1, format, ctx.action_id, downloaded, file_size, "The update is being processed." );
+  esp_http_client_set_post_field( client, post_data, strlen( post_data ) );
+
   esp_err_t err = esp_http_client_perform( client );
   if ( err == ESP_OK )
   {
-    LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
+    LOG( PRINT_INFO, "HTTP POST Status = %d, content_length = %" PRIu64,
          esp_http_client_get_status_code( client ),
          esp_http_client_get_content_length( client ) );
   }
   else
   {
-    LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
-    esp_http_client_cleanup( client );
-    return false;
-  }
-  LOG( PRINT_INFO, "%s", local_response_buffer );
-
-  if ( false == _parse_link( local_response_buffer ) )
-  {
-    esp_http_client_cleanup( client );
-    return false;
+    LOG( PRINT_ERROR, "HTTP POST request failed: %s", esp_err_to_name( err ) );
   }
 
-  if ( ( read_link_type & ( 1 << ELinkTypeConfigData ) ) != 0 )
-  {
-    _post_config_data( client );
-  }
-
-  if ( ( read_link_type & ( 1 << ELinkTypeDeploymentBase ) ) != 0 )
-  {
-    LOG( PRINT_INFO, "Link: %s", link_deployment_base );
-    esp_http_client_set_url( client, link_deployment_base );
-    esp_http_client_set_method( client, HTTP_METHOD_GET );
-    esp_http_client_set_post_field( client, NULL, 0 );
-    esp_err_t err = esp_http_client_perform( client );
-    if ( err == ESP_OK )
-    {
-      LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
-           esp_http_client_get_status_code( client ),
-           esp_http_client_get_content_length( client ) );
-    }
-    else
-    {
-      LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
-      esp_http_client_cleanup( client );
-      return false;
-    }
-
-    LOG( PRINT_INFO, "%s", local_response_buffer );
-
-    _parse_deployment( local_response_buffer, &ota_deployment );
-  }
-
-  esp_http_client_cleanup( client );
-  return true;
+  return err == ESP_OK;
 }
+#endif
 
-static void update_firmware( const char* url )
+static void _download_and_update_firmware( const char* url )
 {
   esp_err_t ota_finish_err = ESP_OK;
   esp_http_client_config_t config = {
@@ -588,7 +522,7 @@ static void update_firmware( const char* url )
     // .cert_pem = (char*) server_cert_pem_start,
     .timeout_ms = 3000,
     .keep_alive_enable = true,
-    .skip_cert_common_name_check = true,
+    .crt_bundle_attach = ota_bundle_attach,
   };
 
   esp_https_ota_config_t ota_config = {
@@ -602,24 +536,29 @@ static void update_firmware( const char* url )
   esp_err_t err = esp_https_ota_begin( &ota_config, &https_ota_handle );
   if ( err != ESP_OK )
   {
-    LOG( PRINT_ERROR, "ESP HTTPS OTA Begin failed" );
-    vTaskDelete( NULL );
+    sprintf( ctx.update_result_details, "ESP HTTPS OTA Begin failed" );
+    _set_update_error();
+    goto ota_end;
   }
 
   esp_app_desc_t app_desc;
   err = esp_https_ota_get_img_desc( https_ota_handle, &app_desc );
   if ( err != ESP_OK )
   {
-    LOG( PRINT_ERROR, "esp_https_ota_read_img_desc failed" );
+    sprintf( ctx.update_result_details, "esp_https_ota_read_img_desc failed" );
+    _set_update_error();
     goto ota_end;
   }
   err = _validate_image_header( &app_desc );
   if ( err != ESP_OK )
   {
-    LOG( PRINT_ERROR, "image header verification failed" );
+    sprintf( ctx.update_result_details, "image header verification failed" );
+    _set_update_error();
     goto ota_end;
   }
 
+  ctx.file_size = esp_https_ota_get_image_size( https_ota_handle );
+  LOG( PRINT_INFO, "Download image size %d", ctx.file_size );
   while ( 1 )
   {
     err = esp_https_ota_perform( https_ota_handle );
@@ -627,15 +566,13 @@ static void update_firmware( const char* url )
     {
       break;
     }
-    // esp_https_ota_perform returns after every read operation which gives user the ability to
-    // monitor the status of OTA upgrade by calling esp_https_ota_get_image_len_read, which gives length of image
-    // data read so far.
-    LOG( PRINT_DEBUG, "Image bytes read: %d", esp_https_ota_get_image_len_read( https_ota_handle ) );
+    int download = esp_https_ota_get_image_len_read( https_ota_handle );
+    LOG( PRINT_DEBUG, "Image bytes read: %d from %d", download, ctx.file_size );
   }
 
   if ( esp_https_ota_is_complete_data_received( https_ota_handle ) != true )
   {
-    // the OTA image was not completely received and user can customise the response to this situation.
+    // the OTA image was not completely received and user can customize the response to this situation.
     LOG( PRINT_ERROR, "Complete data was not received." );
   }
   else
@@ -643,18 +580,23 @@ static void update_firmware( const char* url )
     ota_finish_err = esp_https_ota_finish( https_ota_handle );
     if ( ( err == ESP_OK ) && ( ota_finish_err == ESP_OK ) )
     {
-      LOG( PRINT_INFO, "ESP_HTTPS_OTA upgrade successful. Rebooting ..." );
-      vTaskDelay( 1000 / portTICK_PERIOD_MS );
-      esp_restart();
+      LOG( PRINT_INFO, "ESP_HTTPS_OTA upgrade successful. Wait rebooting ..." );
+      _change_state( DOWNLOADED );
+      return;
     }
     else
     {
       if ( ota_finish_err == ESP_ERR_OTA_VALIDATE_FAILED )
       {
-        LOG( PRINT_ERROR, "Image validation failed, image is corrupted" );
+        sprintf( ctx.update_result_details, "Image validation failed, image is corrupted" );
       }
-      LOG( PRINT_ERROR, "ESP_HTTPS_OTA upgrade failed 0x%x", ota_finish_err );
-      vTaskDelete( NULL );
+      else
+      {
+        sprintf( ctx.update_result_details, "ESP_HTTPS_OTA upgrade failed 0x%x", ota_finish_err );
+      }
+      LOG( PRINT_ERROR, "%s", ctx.update_result_details );
+      ctx.ota_update_result = OTA_UPDATE_RESULT_FAILED;
+      _send_internal_event( MSG_ID_OTA_POST_OTA_RESULT, NULL, 0 );
     }
   }
 
@@ -663,41 +605,24 @@ ota_end:
   LOG( PRINT_ERROR, "ESP_HTTPS_OTA upgrade failed" );
 }
 
-static void ota_process( ota_artifacts_t* artifact )
+static void _ota_process( ota_artifacts_t* artifact )
 {
   if ( strcmp( artifact->filename, "main.bin" ) == 0 )
   {
-    update_firmware( artifact->download_http );
+    _download_and_update_firmware( artifact->download_http );
   }
 }
 
-static void _ota_task( void* pvParameter )
+void _ota_apply_callback( void )
 {
-  LOG( PRINT_INFO, "Starting Advanced OTA example" );
-  memset( &ota_deployment, 0, sizeof( ota_deployment ) );
-  _register_device();
-  if ( ota_deployment.chunkSize != 0 )
-  {
-    for ( int chunk = 0; chunk < ota_deployment.chunkSize; chunk++ )
-    {
-      for ( int art = 0; art < ota_deployment.chunk[chunk].artifactsSize; art++ )
-      {
-        ota_process(&ota_deployment.chunk[chunk].artifacts[art]);
-      }
-    }
-  }
-  vTaskDelete( NULL );
+  _send_internal_event( MSG_ID_OTA_POLL_SERVER, NULL, 0 );
 }
 
-void OTA_Init( void )
+/* State machine functions -----------------------------------------------------*/
+
+static void _state_disabled_init( const app_event_t* event )
 {
   esp_event_handler_register( ESP_HTTPS_OTA_EVENT, ESP_EVENT_ANY_ID, &_ota_event_handler, NULL );
-
-  /**
-     * We are treating successful WiFi connection as a checkpoint to cancel rollback
-     * process and mark newly updated firmware image as active. For production cases,
-     * please tune the checkpoint behavior per end application requirement.
-     */
   const esp_partition_t* running = esp_ota_get_running_partition();
   esp_ota_img_states_t ota_state;
   if ( esp_ota_get_state_partition( running, &ota_state ) == ESP_OK )
@@ -706,6 +631,7 @@ void OTA_Init( void )
     {
       if ( esp_ota_mark_app_valid_cancel_rollback() == ESP_OK )
       {
+        ctx.ota_update_result = OTA_UPDATE_RESULT_SUCCESS;
         LOG( PRINT_INFO, "App is valid, rollback cancelled successfully" );
       }
       else
@@ -714,5 +640,188 @@ void OTA_Init( void )
       }
     }
   }
+  _change_state( IDLE );
+}
+
+static void _state_idle_event_polling( const app_event_t* event )
+{
+  const char* url = _get_poll_address();
+
+  esp_http_client_handle_t client = _init_http_client( url, HTTP_METHOD_GET, NULL, 0, "application/hal+json" );
+  if ( client == NULL )
+  {
+    return;
+  }
+
+  esp_err_t err = esp_http_client_perform( client );
+  AppTimerStart( timers, TIMER_ID_POLLING );
+
+  if ( err == ESP_OK )
+  {
+    LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
+         esp_http_client_get_status_code( client ),
+         esp_http_client_get_content_length( client ) );
+  }
+  else
+  {
+    LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
+    esp_http_client_cleanup( client );
+    return;
+  }
+  LOG( PRINT_INFO, "%s", localResponseBuffer );
+
+  if ( false == OTAParser_ParseUrl( localResponseBuffer, urlConfigData, sizeof( urlConfigData ), urlDeploymentBase, sizeof( urlDeploymentBase ) ) )
+  {
+    esp_http_client_cleanup( client );
+    return;
+  }
+
+  if ( strlen( urlConfigData ) != 0 )
+  {
+    _send_internal_event( MSG_ID_OTA_POST_CONFIG_DATA, NULL, 0 );
+  }
+
+  if ( strlen( urlDeploymentBase ) != 0 )
+  {
+    assert( _find_action_id( urlDeploymentBase, ctx.action_id, sizeof( ctx.action_id ) ) );
+
+    if ( ctx.ota_update_result != OTA_UPDATE_RESULT_NONE )
+    {
+      _send_internal_event( MSG_ID_OTA_POST_OTA_RESULT, NULL, 0 );
+    }
+    else
+    {
+      _send_internal_event( MSG_ID_OTA_DOWNLOAD_IMAGE, NULL, 0 );
+    }
+  }
+
+  esp_http_client_cleanup( client );
+}
+
+static void _state_idle_event_post_config_data( const app_event_t* event )
+{
+  LOG( PRINT_INFO, "post_config_data: %s", urlConfigData );
+  const char* post_data = "{\"mode\":\"merge\",\"data\":{\"VIN\":\"JH4TB2H26CC000001\", \
+                          \"hwRevision\":\"1\"},\"status\":{\"result\":{\"finished\":\"success\"}, \
+                          \"execution\": \"closed\",\"details\":[]}}";
+  esp_http_client_handle_t client = _init_http_client( urlConfigData, HTTP_METHOD_PUT, post_data, strlen( post_data ), "application/hal+json" );
+  if ( client == NULL )
+  {
+    return;
+  }
+
+  esp_err_t err = esp_http_client_perform( client );
+  if ( err == ESP_OK )
+  {
+    LOG( PRINT_INFO, "HTTP POST Status = %d, content_length = %" PRIu64,
+         esp_http_client_get_status_code( client ),
+         esp_http_client_get_content_length( client ) );
+  }
+  else
+  {
+    LOG( PRINT_ERROR, "HTTP POST request failed: %s", esp_err_to_name( err ) );
+  }
+  esp_http_client_cleanup( client );
+}
+
+static void _state_idle_event_ota_download_image( const app_event_t* event )
+{
+  LOG( PRINT_INFO, "_ota_process: %s", urlDeploymentBase );
+  memset( &otaDeployment, 0, sizeof( otaDeployment ) );
+  esp_http_client_handle_t client = _init_http_client( urlDeploymentBase, HTTP_METHOD_GET, NULL, 0, "application/hal+json" );
+  if ( client == NULL )
+  {
+    return;
+  }
+
+  esp_err_t err = esp_http_client_perform( client );
+  if ( err == ESP_OK )
+  {
+    LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
+         esp_http_client_get_status_code( client ),
+         esp_http_client_get_content_length( client ) );
+    esp_http_client_cleanup( client );
+  }
+  else
+  {
+    LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
+    esp_http_client_cleanup( client );
+    return;
+  }
+
+  LOG( PRINT_INFO, "%s", localResponseBuffer );
+
+  OTAParse_ParseDeployment( localResponseBuffer, &otaDeployment );
+
+  AppTimerStop( timers, TIMER_ID_POLLING );
+  if ( otaDeployment.chunkSize != 0 )
+  {
+    for ( int chunk = 0; chunk < otaDeployment.chunkSize; chunk++ )
+    {
+      for ( int art = 0; art < otaDeployment.chunk[chunk].artifactsSize; art++ )
+      {
+        _ota_process( &otaDeployment.chunk[chunk].artifacts[art] );
+      }
+    }
+  }
+  AppTimerStart( timers, TIMER_ID_POLLING );
+}
+
+static void _state_idle_event_post_ota_result( const app_event_t* event )
+{
+  bool post_result = false;
+  switch ( ctx.ota_update_result )
+  {
+    case OTA_UPDATE_RESULT_SUCCESS:
+      post_result = _post_ota_result( "success", "The update was successfully installed." );
+      break;
+
+    case OTA_UPDATE_RESULT_FAILED:
+      post_result = _post_ota_result( "failed", "The update was failed." );
+      break;
+
+    default:
+      break;
+  }
+
+  if ( post_result )
+  {
+    ctx.ota_update_result = OTA_UPDATE_RESULT_NONE;
+  }
+}
+
+static void _ota_task( void* pvParameter )
+{
+  LOG( PRINT_INFO, "Starting Advanced OTA example" );
+  _send_internal_event( MSG_ID_INIT_REQ, NULL, 0 );
+  while ( 1 )
+  {
+    app_event_t event = { 0 };
+    if ( xQueueReceive( ctx.queue, &( event ), portMAX_DELAY ) == pdPASS )
+    {
+      if ( false == AppEventSearchAndExecute( &event, module_state[ctx.state].event_handler_array, module_state[ctx.state].event_handler_array_size ) )
+      {
+        LOG( PRINT_INFO, "State: %s %d", _get_state_name( ctx.state ), module_state[ctx.state].event_handler_array_size );
+      }
+      AppEventDelete( &event );
+    }
+  }
+}
+
+void OTA_PostMsg( app_event_t* event )
+{
+  if ( xQueueSend( ctx.queue, (void*) event, 0 ) != pdPASS )
+  {
+    assert( 0 );
+  }
+}
+
+void OTA_Init( void )
+{
+  OTAConfig_Init();
+  OTAConfig_SetCallback( _ota_apply_callback );
+  ctx.queue = xQueueCreate( 16, sizeof( app_event_t ) );
+  assert( ctx.queue );
+  AppTimersInit( timers, TIMER_ID_LAST );
   xTaskCreate( &_ota_task, "_ota_task", 1024 * 8, NULL, 5, NULL );
 }

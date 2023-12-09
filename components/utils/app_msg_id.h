@@ -45,6 +45,13 @@
   MSG( TCP_SERVER_ETHERNET_DISCONNECTED )         \
   MSG( TCP_SERVER_SEND_DATA )                     \
                                                   \
+  /* OTA */                                       \
+  MSG( OTA_POLL_SERVER )                          \
+  MSG( OTA_POST_CONFIG_DATA )                     \
+  MSG( OTA_DOWNLOAD_IMAGE )                       \
+  MSG( OTA_POST_OTA_RESULT )                      \
+  MSG( OTA_STOP_POLL_SERVER )                     \
+                                                  \
   /* TCP Server internal msg ids */               \
   MSG( TCP_SERVER_WAIT_CONNECTION )               \
   MSG( TCP_SERVER_WAIT_CLIENT_DATA )              \

@@ -177,10 +177,6 @@ void wifi_manager_start()
   /* disable the default wifi logging */
   esp_log_level_set( "wifi", ESP_LOG_NONE );
 
-  /* initialize flash memory */
-  nvs_flash_init();
-  ESP_ERROR_CHECK( nvs_sync_create() ); /* semaphore for thread synchronization on NVS memory */
-
   /* memory allocation */
   wifi_manager_queue = xQueueCreate( 3, sizeof( queue_message ) );
   wifi_manager_json_mutex = xSemaphoreCreateMutex();
