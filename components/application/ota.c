@@ -820,8 +820,8 @@ void OTA_Init( void )
 {
   OTAConfig_Init();
   OTAConfig_SetCallback( _ota_apply_callback );
-  ctx.queue = xQueueCreate( 16, sizeof( app_event_t ) );
+  ctx.queue = xQueueCreate( 8, sizeof( app_event_t ) );
   assert( ctx.queue );
   AppTimersInit( timers, TIMER_ID_LAST );
-  xTaskCreate( &_ota_task, "_ota_task", 1024 * 8, NULL, 5, NULL );
+  xTaskCreate( &_ota_task, "_ota_task", 1024 * 6, NULL, 5, NULL );
 }

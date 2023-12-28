@@ -455,5 +455,5 @@ void TemperatureInit( void )
   ctx.queue = xQueueCreate( 8, sizeof( app_event_t ) );
   assert( ctx.queue );
   AppTimersInit( timers, TIMER_ID_LAST );
-  xTaskCreate( _event_task, "temperature", CONFIG_THD_SIZE, NULL, NORMALPRIOR, NULL );
+  xTaskCreate( _event_task, "temperature", 2048, NULL, NORMALPRIOR, NULL );
 }

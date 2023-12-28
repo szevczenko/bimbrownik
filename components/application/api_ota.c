@@ -16,7 +16,7 @@
 #include "ota_config.h"
 
 /* Private macros ------------------------------------------------------------*/
-#define MODULE_NAME "[API Config] "
+#define MODULE_NAME "[API OTA] "
 #define DEBUG_LVL   PRINT_INFO
 
 #if CONFIG_DEBUG_TCP_SERVER
@@ -47,8 +47,8 @@ static json_parse_token_t ota_tokens[] = {
    .name = "tls"      },
   { .int_cb = _set_polling_time,
    .name = "poll_time"},
-   { .string_cb = _set_token,
-   .name = "token"   },
+  { .string_cb = _set_token,
+   .name = "token"    },
 };
 
 static const char* response;
@@ -62,11 +62,11 @@ static void _init_exec_command( void )
   err_code = ERROR_CODE_OK;
 }
 
-error_code_t _get_response( char* resp, size_t respLen )
+static error_code_t _get_response( char* resp, size_t respLen )
 {
-  if (NULL != response)
+  if ( NULL != response )
   {
-    strncpy( resp, response, respLen );
+    snprintf( resp, respLen, "\"%s\"", response );
   }
   return err_code;
 }

@@ -690,6 +690,7 @@ static void wifi_manager_event_handler( void* arg, esp_event_base_t event_base, 
       case WIFI_EVENT_AP_STACONNECTED:
         ESP_LOGI( TAG, "WIFI_EVENT_AP_STACONNECTED" );
         xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_CONNECTING_BIT );
+        xEventGroupSetBits( wifi_manager_event_group, WIFI_MANAGER_AP_STA_CONNECTED_BIT );
         break;
 
       /* This event can happen in the following scenarios:
@@ -699,8 +700,11 @@ static void wifi_manager_event_handler( void* arg, esp_event_base_t event_base, 
 		 * When this event happens, the event task will do nothing, but the application event callback needs to do
 		 * something, e.g., close the socket which is related to this station, etc. */
       case WIFI_EVENT_AP_STADISCONNECTED:
-        ESP_LOGI( TAG, "WIFI_EVENT_AP_STADISCONNECTED" );
+        wifi_event_ap_stadisconnected_t* reason = (wifi_event_ap_stadisconnected_t*) event_data;
+        ESP_LOGW( TAG, "WIFI_EVENT_AP_STADISCONNECTED reason %d", reason->reason );
         xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_CONNECTING_BIT );
+        xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_AP_STA_CONNECTED_BIT );
+        wifi_manager_send_message( WM_ORDER_CONNECT_STA, (void*) CONNECTION_REQUEST_AUTO_RECONNECT );
         break;
 
       /* This event is disabled by default. The application can enable it via API esp_wifi_set_event_mask().
@@ -1216,7 +1220,10 @@ void wifi_manager( void* pvParameters )
             }
 
             /* Start the timer that will try to restore the saved config */
-            xTimerStart( wifi_manager_retry_timer, (TickType_t) 0 );
+            if ( !( uxBits & WIFI_MANAGER_AP_STA_CONNECTED_BIT ) )
+            {
+              xTimerStart( wifi_manager_retry_timer, (TickType_t) 0 );
+            }
 
             /* if it was a restore attempt connection, we clear the bit */
             xEventGroupClearBits( wifi_manager_event_group, WIFI_MANAGER_REQUEST_RESTORE_STA_BIT );
@@ -1330,7 +1337,7 @@ void wifi_manager( void* pvParameters )
           }
 
           /* bring down DNS hijack */
-          dns_server_stop();
+          // dns_server_stop();
 
           /* start the timer that will eventually shutdown the access point
 				 * We check first that it's actually running because in case of a boot and restore connection

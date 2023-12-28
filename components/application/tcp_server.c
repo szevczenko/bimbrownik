@@ -34,9 +34,9 @@
 #define LOG( PRINT_INFO, ... )
 #endif
 
-#define PAYLOAD_SIZE                   256
-#define MESSAGE_SIZE                   224
-#define CONFIG_TCPIP_EVENT_THD_WA_SIZE 4096
+#define PAYLOAD_SIZE                   1024
+#define MESSAGE_SIZE                   992
+#define CONFIG_TCPIP_EVENT_THD_WA_SIZE 3072
 #define MAGIC_WORD                     0xDEADBEAF
 #define HEADER_OFFSET                  8
 

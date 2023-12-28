@@ -263,5 +263,5 @@ void AppManagerInit( void )
   ctx.queue = xQueueCreate( 16, sizeof( app_event_t ) );
   assert( ctx.queue );
   AppTimersInit( timers, TIMER_ID_LAST );
-  xTaskCreate( _task, "app_manager_task", 4096, NULL, NORMALPRIOR, NULL );
+  xTaskCreate( _task, "app_manager_task", 2048, NULL, NORMALPRIOR, NULL );
 }

@@ -12,14 +12,14 @@
 
 ///////////////////// LOGS //////////////////////
 
-#define CONFIG_DEBUG_WIFI            1
-#define CONFIG_DEBUG_APP_EVENT       1
-#define CONFIG_DEBUG_APP_MANAGER     1
-#define CONFIG_DEBUG_NETWORK_MANAGER 1
-#define CONFIG_DEBUG_TEMPERATURE     1
-#define CONFIG_DEBUG_JSON            1
-#define CONFIG_DEBUG_TCP_SERVER      1
-#define CONFIG_DEBUG_TCP_TRANSPORT   1
+#define CONFIG_DEBUG_WIFI            0
+#define CONFIG_DEBUG_APP_EVENT       0
+#define CONFIG_DEBUG_APP_MANAGER     0
+#define CONFIG_DEBUG_NETWORK_MANAGER 0
+#define CONFIG_DEBUG_TEMPERATURE     0
+#define CONFIG_DEBUG_JSON            0
+#define CONFIG_DEBUG_TCP_SERVER      0
+#define CONFIG_DEBUG_TCP_TRANSPORT   0
 
 //////////////  CONFIG MODULES  //////////////////
 #define DEV_CONFIG_TCP_SERVER_PORT 1234

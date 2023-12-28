@@ -21,6 +21,7 @@
   EVENT_TASK( WIFI_DRV )        \
   EVENT_TASK( TCP_SERVER )      \
   EVENT_TASK( OTA )             \
+  EVENT_TASK( MQTT_APP )        \
   EVENT_TASK( TEMP_DRV )
 
 /* Public macro --------------------------------------------------------------*/

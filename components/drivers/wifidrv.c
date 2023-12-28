@@ -32,7 +32,7 @@
 #define LOG( PRINT_INFO, ... )
 #endif
 
-#define CONFIG_TCPIP_EVENT_THD_WA_SIZE 4096
+#define CONFIG_TCPIP_EVENT_THD_WA_SIZE 2046
 
 /* Private types -------------------------------------------------------------*/
 

@@ -21,6 +21,7 @@
 #include "ota.h"
 #include "tcp_server.h"
 #include "wifidrv.h"
+#include "mqtt_app.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[NetworkManager] "
@@ -248,16 +249,19 @@ static void _state_idle_event_wifi_connect_status( const app_event_t* event )
 
   app_event_t tcp_event = { 0 };
   app_event_t ota_event = { 0 };
+  app_event_t mqtt_event = { 0 };
 
   if ( err == WIFI_DRV_ERR_CONNECTED )
   {
     AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
     AppEventPrepareNoData( &ota_event, MSG_ID_OTA_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_OTA );
+    AppEventPrepareNoData( &mqtt_event, MSG_ID_MQTT_ETH_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_MQTT_APP );
   }
   else if ( err == WIFI_DRV_ERR_DISCONNECTED )
   {
     AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
     AppEventPrepareNoData( &ota_event, MSG_ID_OTA_STOP_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_OTA );
+    AppEventPrepareNoData( &mqtt_event, MSG_ID_MQTT_ETH_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_MQTT_APP );
   }
   else
   {
@@ -265,6 +269,7 @@ static void _state_idle_event_wifi_connect_status( const app_event_t* event )
   }
   TCPServer_PostMsg( &tcp_event );
   OTA_PostMsg( &ota_event );
+  MQTTApp_PostMsg( &mqtt_event );
 }
 
 static void _task( void* pv )

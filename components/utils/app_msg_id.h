@@ -52,6 +52,15 @@
   MSG( OTA_POST_OTA_RESULT )                      \
   MSG( OTA_STOP_POLL_SERVER )                     \
                                                   \
+  /* MQTT */                                      \
+  MSG( MQTT_APP_CONNECT )                         \
+  MSG( MQTT_APP_SUBSCRIBE )                       \
+  MSG( MQTT_ETH_CONNECTED )                       \
+  MSG( MQTT_ETH_DISCONNECTED )                    \
+  MSG( MQTT_APP_UPDATE_CONFIG )                   \
+  MSG( MQTT_APP_POST_DATA )                       \
+  MSG( MQTT_APP_DISCONNECT )                      \
+                                                  \
   /* TCP Server internal msg ids */               \
   MSG( TCP_SERVER_WAIT_CONNECTION )               \
   MSG( TCP_SERVER_WAIT_CLIENT_DATA )              \

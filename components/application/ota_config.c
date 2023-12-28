@@ -47,7 +47,7 @@ typedef struct
   int32_t polling_time;
 } config_data_t;
 
-ota_apply_config_cb apply_config_callback = NULL;
+static ota_apply_config_cb apply_config_callback = NULL;
 
 /* Private variables ---------------------------------------------------------*/
 static config_data_t config_data;

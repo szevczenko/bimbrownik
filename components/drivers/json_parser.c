@@ -28,7 +28,7 @@
 
 #define METHOD_NAME_MAX_SIZE    32
 #define ARRAY_SIZE( _array )    sizeof( _array ) / sizeof( _array[0] )
-#define JSON_PARSER_MAX_METHODS 8
+#define JSON_PARSER_MAX_METHODS 12
 
 /* Private types -------------------------------------------------------------*/
 
@@ -50,7 +50,7 @@ typedef struct
 } json_parser_ctx_t;
 
 /* Private variables ---------------------------------------------------------*/
-json_parser_ctx_t ctx;
+static json_parser_ctx_t ctx;
 
 /* Private functions ---------------------------------------------------------*/
 
