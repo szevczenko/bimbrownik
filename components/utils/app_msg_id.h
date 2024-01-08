@@ -61,6 +61,10 @@
   MSG( MQTT_APP_POST_DATA )                       \
   MSG( MQTT_APP_DISCONNECT )                      \
                                                   \
+  /* Device Manager */                            \
+  MSG( DEV_MANAGER_MEASURE )                      \
+  MSG( DEV_MANAGER_POST )                         \
+                                                  \
   /* TCP Server internal msg ids */               \
   MSG( TCP_SERVER_WAIT_CONNECTION )               \
   MSG( TCP_SERVER_WAIT_CLIENT_DATA )              \

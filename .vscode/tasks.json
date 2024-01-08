@@ -165,6 +165,26 @@
                     "endsPattern": "Info : Listening on port \\d+ for gdb connections"
                 }
             }
+        },
+        {
+            "label": "OpenOCD ESP32",
+            "type": "shell",
+            "windows": {
+                "command": "${workspaceFolder}/../esp_tools/idf_cmd_init.bat esp-idf-724e6199ae570d882b9708a93a25ce51 & openocd -f board/esp32-wrover-kit-3.3v.cfg"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(Info |Warn ):(.*)$",
+                    "severity": 1,
+                    "message": 2
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".",
+                    "endsPattern": "Info : Listening on port \\d+ for gdb connections"
+                }
+            }
         }
     ],
     "inputs": [

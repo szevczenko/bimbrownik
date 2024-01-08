@@ -40,8 +40,7 @@ typedef struct api_mqtt
 
 static void _set_address( const char* str, size_t str_len, uint32_t iterator );
 static void _set_ssl( bool value, uint32_t iterator );
-static void _set_config_topic( const char* str, size_t str_len, uint32_t iterator );
-static void _set_control_topic( const char* str, size_t str_len, uint32_t iterator );
+static void _set_prefix_topic( const char* str, size_t str_len, uint32_t iterator );
 static void _set_post_data_topic( const char* str, size_t str_len, uint32_t iterator );
 static void _set_username( const char* str, size_t str_len, uint32_t iterator );
 static void _set_password( const char* str, size_t str_len, uint32_t iterator );
@@ -57,10 +56,8 @@ static json_parse_token_t mqtt_tokens[] = {
    .name = "address"},
   { .bool_cb = _set_ssl,
    .name = "ssl"    },
-  { .string_cb = _set_config_topic,
-   .name = "config" },
-  { .string_cb = _set_control_topic,
-   .name = "control"},
+  { .string_cb = _set_prefix_topic,
+   .name = "prefix" },
   { .string_cb = _set_post_data_topic,
    .name = "data"   },
   { .string_cb = _set_username,
@@ -213,8 +210,7 @@ static error_code_t _get_cert( char* resp, size_t respLen )
 error_code_t _get_mqtt_config( char* resp, size_t respLen )
 {
   const char* address;
-  const char* config_topic;
-  const char* control_topic;
+  const char* prefix;
   const char* data_topic;
   const char* username;
   const char* password;
@@ -230,16 +226,10 @@ error_code_t _get_mqtt_config( char* resp, size_t respLen )
     strncpy( resp, "Fail get ssl value", respLen );
     return ERROR_CODE_FAIL;
   }
-  config_topic = MQTTConfig_GetString( MQTT_CONFIG_VALUE_CONFIG_TOPIC );
-  if ( NULL == config_topic )
+  prefix = MQTTConfig_GetString( MQTT_CONFIG_VALUE_TOPIC_PREFIX );
+  if ( NULL == prefix )
   {
-    strncpy( resp, "Fail get config_topic value", respLen );
-    return ERROR_CODE_FAIL;
-  }
-  control_topic = MQTTConfig_GetString( MQTT_CONFIG_VALUE_CONTROL_TOPIC );
-  if ( NULL == control_topic )
-  {
-    strncpy( resp, "Fail get control_topic value", respLen );
+    strncpy( resp, "Fail get prefix value", respLen );
     return ERROR_CODE_FAIL;
   }
   data_topic = MQTTConfig_GetString( MQTT_CONFIG_VALUE_POST_DATA_TOPIC );
@@ -260,8 +250,8 @@ error_code_t _get_mqtt_config( char* resp, size_t respLen )
     strncpy( resp, "Fail get password value", respLen );
     return ERROR_CODE_FAIL;
   }
-  snprintf( resp, respLen, "{\"address\":\"%s\",\"ssl\":%s,\"config\":\"%s\",\"control\":\"%s\",\"data\":\"%s\",\"user\":\"%s\",\"pass\":\"%s\"}",
-            address, ssl ? "true" : "false", config_topic, control_topic, data_topic, username, password );
+  snprintf( resp, respLen, "{\"address\":\"%s\",\"ssl\":%s,\"prefix\":\"%s\",\"data\":\"%s\",\"user\":\"%s\",\"pass\":\"%s\"}",
+            address, ssl ? "true" : "false", prefix, data_topic, username, password );
   return ERROR_CODE_OK;
 }
 
@@ -302,14 +292,9 @@ static void _set_ssl( bool value, uint32_t iterator )
   }
 }
 
-static void _set_config_topic( const char* str, size_t str_len, uint32_t iterator )
+static void _set_prefix_topic( const char* str, size_t str_len, uint32_t iterator )
 {
-  _set_string_value( str, str_len, MQTT_CONFIG_VALUE_CONFIG_TOPIC );
-}
-
-static void _set_control_topic( const char* str, size_t str_len, uint32_t iterator )
-{
-  _set_string_value( str, str_len, MQTT_CONFIG_VALUE_CONTROL_TOPIC );
+  _set_string_value( str, str_len, MQTT_CONFIG_VALUE_TOPIC_PREFIX );
 }
 
 static void _set_post_data_topic( const char* str, size_t str_len, uint32_t iterator )

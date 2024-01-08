@@ -24,12 +24,13 @@
 #include "lwip/sockets.h"
 #include "mqtt_client.h"
 #include "mqtt_config.h"
+#include "mqtt_json_parser.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[MQTT App] "
 #define DEBUG_LVL   PRINT_INFO
 
-#if CONFIG_DEBUG_TCP_SERVER
+#if CONFIG_DEBUG_MQTT_APP
 #define LOG( _lvl, ... ) \
   debug_printf( DEBUG_LVL, _lvl, MODULE_NAME __VA_ARGS__ )
 #else
@@ -184,10 +185,12 @@ static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t da
 
 static bool _subscribe( void )
 {
-  char* config_topic = (char*) MQTTConfig_GetString( MQTT_CONFIG_VALUE_CONFIG_TOPIC );
-  char* control_topic = (char*) MQTTConfig_GetString( MQTT_CONFIG_VALUE_CONTROL_TOPIC );
-  int msg_id = esp_mqtt_client_subscribe( ctx.client, config_topic, 0 );
-  msg_id = esp_mqtt_client_subscribe( ctx.client, control_topic, 0 );
+  char* config_topic = (char*) MQTTConfig_GetString( MQTT_CONFIG_VALUE_TOPIC_PREFIX );
+  char subscribe_topic[MQTT_CONFIG_STR_SIZE + 4];
+  // uint32_t sn = DevConfig_GetSerialNumber();
+  sprintf( subscribe_topic, "%s/#", config_topic );
+  // char* control_topic = (char*) MQTTConfig_GetString( MQTT_CONFIG_VALUE_CONTROL_TOPIC );
+  int msg_id = esp_mqtt_client_subscribe( ctx.client, subscribe_topic, 0 );
   if ( msg_id == -1 )
   {
     LOG( PRINT_ERROR, "Failed subscribe, msg_id=%d", msg_id );
@@ -241,7 +244,12 @@ static void _mqtt_event_handler( void* handler_args, esp_event_base_t base, int3
       LOG( PRINT_INFO, "MQTT_EVENT_DATA" );
       printf( "TOPIC=%.*s\r\n", event->topic_len, event->topic );
       printf( "DATA=%.*s\r\n", event->data_len, event->data );
-      /* ToDo: parse data */
+      char* prefix = (char*) MQTTConfig_GetString( MQTT_CONFIG_VALUE_TOPIC_PREFIX );
+      if ( memcmp( prefix, event->topic, strlen( prefix ) ) == 0 )
+      {
+        size_t offset = strlen( prefix ) + 1;
+        MQTTJsonParse( &event->topic[offset], event->topic_len - offset, event->data, event->data_len, NULL, 0 );
+      }
       break;
     case MQTT_EVENT_ERROR:
       LOG( PRINT_INFO, "MQTT_EVENT_ERROR" );
@@ -395,6 +403,11 @@ static void _task( void* pv )
   }
 }
 
+static void _update_config_cb( void )
+{
+  _send_internal_event( MSG_ID_MQTT_APP_UPDATE_CONFIG, NULL, 0 );
+}
+
 /* Public functions -----------------------------------------------------------*/
 
 void MQTTApp_PostMsg( app_event_t* event )
@@ -408,8 +421,31 @@ void MQTTApp_PostMsg( app_event_t* event )
 void MQTTApp_Init( void )
 {
   MQTTConfig_Init();
+  MQTTConfig_SetCallback( _update_config_cb );
   ctx.queue = xQueueCreate( 8, sizeof( app_event_t ) );
   assert( ctx.queue );
   AppTimersInit( timers, TIMER_ID_LAST );
   xTaskCreate( _task, "mqtt_app", 3072, NULL, NORMALPRIOR, NULL );
+}
+
+bool MqttApp_PostData( const char* topic, const char* msg )
+{
+  assert( topic );
+  assert( msg );
+  if ( ctx.state != WORK )
+  {
+    return false;
+  }
+  char post_topic[128] = {};
+  const char* prefix = MQTTConfig_GetString( MQTT_CONFIG_VALUE_POST_DATA_TOPIC );
+
+  snprintf( post_topic, sizeof( post_topic ) - 1, "%s/%s", prefix, topic );
+
+  int msg_id = esp_mqtt_client_publish( ctx.client, post_topic, msg, 0, 0, 0 );
+  if ( msg_id < 0 )
+  {
+    LOG( PRINT_WARNING, "publish data fail" );
+    return false;
+  }
+  return true;
 }

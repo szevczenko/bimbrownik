@@ -144,7 +144,10 @@
             "esp_rom_gpio.h": "c",
             "*.inc": "c",
             "mqtt_client.h": "c",
-            "esp_spiffs.h": "c"
+            "esp_spiffs.h": "c",
+            "complex": "c",
+            "memory": "c",
+            "istream": "c"
         },
         "cSpell.words": [
             "Dmytro",

@@ -19,13 +19,52 @@
         "flushregs",
         "thb app_main"
       ],
-      "preLaunchTask": "OpenOCD",
+      "preLaunchTask": "OpenOCD ESP32",
       "postDebugTask": "Terminate All Tasks",
     },
     {
       "type": "cppdbg",
       "request": "launch",
       "name": "Debug ESP32",
+      "program": "${workspaceFolder}\\build\\main.elf",
+      "cwd": "${workspaceFolder}",
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "${config:idf.customExtraPaths}"
+        }
+      ],
+      "miDebuggerPath": "C:/projekty/esp_tools/tools/xtensa-esp-elf-gdb/12.1_20221002/xtensa-esp-elf-gdb/bin/xtensa-esp32-elf-gdb.exe", // Path of the toolchain
+      "setupCommands": [
+        // {
+        //   "text": "mon esp appimage_offset 0x100000"
+        // },
+        // {
+        //   "text": "disconnect"
+        // },
+        {
+          "text": "target extended-remote :3333"
+        },
+        {
+          "text": "set remote hardware-watchpoint-limit 2"
+        },
+        {
+          "text": "mon reset halt"
+        },
+        {
+          "text": "thb app_main"
+        },
+        {
+          "text": "flushregs"
+        }
+      ],
+      "preLaunchTask": "OpenOCD ESP32",
+      "postDebugTask": "Terminate All Tasks",
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Debug ESP32S2",
       "program": "${workspaceFolder}\\build\\main.elf",
       "cwd": "${workspaceFolder}",
       "environment": [

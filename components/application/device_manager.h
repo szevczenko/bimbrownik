@@ -1,15 +1,15 @@
 /**
  *******************************************************************************
- * @file    ota.h
+ * @file    device_manager.h
  * @author  Dmytro Shevchenko
- * @brief   MQTT Application layer
+ * @brief   Device manager header file
  *******************************************************************************
  */
 
 /* Define to prevent recursive inclusion ------------------------------------*/
 
-#ifndef _MQTT_APP_H
-#define _MQTT_APP_H
+#ifndef _DEVICE_MANAGER_H_
+#define _DEVICE_MANAGER_H_
 
 #include <stdbool.h>
 
@@ -20,16 +20,11 @@
 /**
  * @brief   Init mqtt app task.
  */
-void MQTTApp_Init( void );
+void DeviceManager_Init( void );
 
 /**
  * @brief   Sends event to mqtt app task.
  */
-void MQTTApp_PostMsg( app_event_t* event );
-
-/**
- * @brief   Post data.
- */
-bool MqttApp_PostData( const char* topic, const char* msg );
+void DeviceManager_PostMsg( app_event_t* event );
 
 #endif

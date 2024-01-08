@@ -31,7 +31,9 @@ const char* error_codes[ERROR_CODE_LAST] =
     [ERROR_CODE_OK] = "OK",
     [ERROR_CODE_OK_NO_ACK] = "NO ACK",
     [ERROR_CODE_FAIL] = "FAIL",
-    [ERROR_CODE_ERROR_PARSING] = "ERROR PARSING" };
+    [ERROR_CODE_ERROR_PARSING] = "ERROR PARSING",
+    [ERROR_CODE_UNKNOWN_MQTT_TOPIC_TYPE] = "UNKNOWN_MQTT_TOPIC_TYPE",
+};
 
 /* Public functions ---------------------------------------------------------*/
 

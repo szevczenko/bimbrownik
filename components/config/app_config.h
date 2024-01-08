@@ -20,10 +20,11 @@
 #define CONFIG_DEBUG_JSON            0
 #define CONFIG_DEBUG_TCP_SERVER      0
 #define CONFIG_DEBUG_TCP_TRANSPORT   0
+#define CONFIG_DEBUG_MQTT_APP        1
+#define CONFIG_DEBUG_DEVICE_MANAGER  1
 
 //////////////  CONFIG MODULES  //////////////////
 #define DEV_CONFIG_TCP_SERVER_PORT 1234
-
 
 #define NORMALPRIOR 5
 
@@ -54,7 +55,7 @@
 #define NORMALPRIO       5
 
 #define MS2ST( ms )   pdMS_TO_TICKS( ms )
-#define ST2MS( tick ) ( (tick) *portTICK_RATE_MS )
+#define ST2MS( tick ) ( ( tick ) * portTICK_RATE_MS )
 
 #define osDelay( ms )       vTaskDelay( MS2ST( ms ) )
 #define debug_printf( ... ) config_printf( __VA_ARGS__ )

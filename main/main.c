@@ -22,6 +22,7 @@
 #include "tcp_server.h"
 #include "temperature.h"
 #include "wifidrv.h"
+#include "device_manager.h"
 
 static const char* TAG = "MAIN";
 
@@ -117,6 +118,7 @@ void app_main( void )
   TCPServer_Init();
   OTA_Init();
   MQTTApp_Init();
+  DeviceManager_Init();
   // screenInit();
 
   AppManagerInit();
