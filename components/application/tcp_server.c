@@ -266,14 +266,6 @@ static void _state_common_event_close_socket( const app_event_t* event )
     ctx.server_socket = -1;
   }
 
-  //keepAliveStop(&ctx.keepAlive);
-  if ( ctx.state == WORKING )
-  {
-    bool result = false;
-    app_event_t response = { 0 };
-    AppEventPrepareWithData( &response, MSG_ID_NETWORK_MANAGER_TCP_SERVER_CLIENT_STATUS, APP_EVENT_TCP_SERVER, APP_EVENT_NETWORK_MANAGER, &result, sizeof( result ) );
-    NetworkManagerPostMsg( &response );
-  }
   if ( ctx.ethernet_is_connected )
   {
     _send_internal_event( MSG_ID_TCP_SERVER_PREPARE_SOCKET, NULL, 0 );
@@ -283,10 +275,6 @@ static void _state_common_event_close_socket( const app_event_t* event )
 
 static void _state_disabled_event_init_request( const app_event_t* event )
 {
-  bool result = true;
-  app_event_t response = { 0 };
-  AppEventPrepareWithData( &response, MSG_ID_INIT_RES, APP_EVENT_TCP_SERVER, APP_EVENT_NETWORK_MANAGER, &result, sizeof( result ) );
-  NetworkManagerPostMsg( &response );
   _change_state( IDLE );
 }
 
@@ -343,10 +331,6 @@ static void _state_wait_connecting_event_wait_connection( const app_event_t* eve
   ctx.client_socket = ret;
   //   keepAliveStart( &ctx.keepAlive );
   LOG( PRINT_INFO, "We have a new client connection! %d", ctx.client_socket );
-  bool result = true;
-  app_event_t response = { 0 };
-  AppEventPrepareWithData( &response, MSG_ID_NETWORK_MANAGER_TCP_SERVER_CLIENT_STATUS, APP_EVENT_TCP_SERVER, APP_EVENT_NETWORK_MANAGER, &result, sizeof( result ) );
-  NetworkManagerPostMsg( &response );
   _send_internal_event( MSG_ID_TCP_SERVER_WAIT_CLIENT_DATA, NULL, 0 );
   _change_state( WORKING );
 }

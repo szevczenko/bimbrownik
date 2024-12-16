@@ -22,15 +22,6 @@
   MSG( APP_MANAGER_TEMP_SENSORS_SCAN_RES )        \
   MSG( APP_MANAGER_TEMP_WPS_TEST )                \
                                                   \
-  /* Network manager ids */                       \
-  MSG( NETWORK_MANAGER_TIMEOUT_INIT )             \
-  MSG( NETWORK_MANAGER_INIT_RES )                 \
-  MSG( NETWORK_MANAGER_TCP_SERVER_CLIENT_STATUS ) \
-  MSG( NETWORK_MANAGER_WIFI_CONNECT_STATUS )      \
-                                                  \
-  /* Wifi internal msg ids */                     \
-  MSG( WIFI_UPDATE_WIFI_INFO )                    \
-                                                  \
   /* Temperature msg ids */                       \
   MSG( TEMPERATURE_SCAN_DEVICES_REQ )             \
   MSG( TEMPERATURE_SCAN_DEVICES_RES )             \
@@ -45,12 +36,12 @@
   MSG( TCP_SERVER_ETHERNET_DISCONNECTED )         \
   MSG( TCP_SERVER_SEND_DATA )                     \
                                                   \
-  /* OTA */                                       \
-  MSG( OTA_POLL_SERVER )                          \
-  MSG( OTA_POST_CONFIG_DATA )                     \
-  MSG( OTA_DOWNLOAD_IMAGE )                       \
-  MSG( OTA_POST_OTA_RESULT )                      \
-  MSG( OTA_STOP_POLL_SERVER )                     \
+  /* HAWKBIT */                                   \
+  MSG( HAWKBIT_POLL_SERVER )                      \
+  MSG( HAWKBIT_POST_CONFIG_DATA )                 \
+  MSG( HAWKBIT_DOWNLOAD_IMAGE )                   \
+  MSG( HAWKBIT_POST_HAWKBIT_RESULT )                  \
+  MSG( HAWKBIT_STOP_POLL_SERVER )                 \
                                                   \
   /* MQTT */                                      \
   MSG( MQTT_APP_CONNECT )                         \

@@ -17,6 +17,9 @@
 #include "app_events.h"
 
 /* Public macro --------------------------------------------------------------*/
+#ifndef DEV_CONFIG_TCP_SERVER_PORT
+#define DEV_CONFIG_TCP_SERVER_PORT 1234
+#endif
 
 /* Public types --------------------------------------------------------------*/
 

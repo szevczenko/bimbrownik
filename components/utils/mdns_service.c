@@ -61,7 +61,7 @@ void mDNS_Start( void )
   };
 
   //initialize service
-  ESP_ERROR_CHECK( mdns_service_add( "Bimbrownik TCP Server", "_remote", "_tcp", DEV_CONFIG_TCP_SERVER_PORT, serviceTxtData, 1 ) );
+  // ESP_ERROR_CHECK( mdns_service_add( "Bimbrownik TCP Server", "_remote", "_tcp", DEV_CONFIG_TCP_SERVER_PORT, serviceTxtData, 1 ) );
   //add mac key string text item
   ESP_ERROR_CHECK( mdns_service_txt_item_set( "_remote", "_tcp", "mac", gen_mac_str( sta_mac, "\0", temp_str ) ) );
 }

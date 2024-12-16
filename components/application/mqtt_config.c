@@ -61,7 +61,7 @@ static mqtt_apply_config_cb apply_config_callback = NULL;
 /* Private variables ---------------------------------------------------------*/
 static config_data_t config_data;
 
-#define _default_address       "192.168.1.136:8000"
+#define _default_address       "mqtt://192.168.1.136:8000"
 #define _default_config_topic  "/config/"
 #define _default_control_topic "/control/"
 #define _default_post_topic    "/post_data/"

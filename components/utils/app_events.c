@@ -92,9 +92,12 @@ bool AppEventPrepareWithData( app_event_t* event, app_msg_id_t msg_id, app_event
 
 bool AppEventGetData( const app_event_t* event, void* data, uint32_t data_size )
 {
-  if ( event == NULL || event->data == NULL || event->data_size == 0 || data == NULL || data_size != event->data_size )
+  assert( event );
+  assert( data );
+  assert( ( data_size == event->data_size ) || event->data_size == 0 );
+
+  if ( event->data == NULL || event->data_size == 0 )
   {
-    assert( 0 );
     return false;
   }
 
@@ -149,7 +152,7 @@ bool AppEventSearchAndExecute( const app_event_t* event, const struct app_events
     }
   }
 
-  if (found_id == false)
+  if ( found_id == false )
   {
     LOG( PRINT_INFO, "Could not run %s: %s", event_task_name[event->dst], msg_id_name[event->msg_id] );
   }

@@ -154,7 +154,7 @@ uint8_t OWUart_init( void* arg )
   OW_ERROR_CHECK( uart_set_pin( OW_UART_NUM, OW_UART_TXD, OW_UART_RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE ) );
 
   uart_ll_ena_intr_mask( ctx.dev, UART_INTR_TX_DONE | UART_INTR_RXFIFO_FULL );
-  int ret = esp_intr_alloc( uart_periph_signal[OW_UART_NUM].irq, ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM, _uart_intr_handle, NULL, &ctx.handle_ow_uart );
+  int ret = 0;//esp_intr_alloc( uart_periph_signal[OW_UART_NUM].irq, ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM, _uart_intr_handle, NULL, &ctx.handle_ow_uart );
   if ( ret != ESP_OK )
   {
     return 0;

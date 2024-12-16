@@ -12,16 +12,16 @@
 
 #include "app_config.h"
 #include "app_events.h"
-#include "app_manager.h"
 #include "app_timers.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "ota.h"
+#include "hawkbit_process.h"
+#include "wifi_http_app.h"
+#include "mqtt_app.h"
 #include "tcp_server.h"
 #include "wifidrv.h"
-#include "mqtt_app.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[NetworkManager] "
@@ -40,7 +40,8 @@
 #define STATE_HANDLER_ARRAY                        \
   STATE( DISABLED, _disabled_state_handler_array ) \
   STATE( INIT, _init_state_handler_array )         \
-  STATE( IDLE, _idle_state_handler_array )
+  STATE( SERVER, _server_state_handler_array )     \
+  STATE( CLIENT, _client_state_handler_array )
 
 /** @brief  Private types */
 typedef enum
@@ -51,56 +52,101 @@ typedef enum
     STATE_TOP,
 } module_state_t;
 
+typedef enum
+{
+  WIFI_STOP,
+  WIFI_CLIENT,
+  WIFI_SERVER,
+} wifi_state_t;
+
 typedef struct
 {
   module_state_t state;
   uint32_t modules_init;
 
-  bool wifi_init_status;
-  bool wifi_is_connected;
+  bool is_connected;
+  wifi_state_t wifi_state;
+  /* This flag for do not send REQUEST_ERROR_CONNECT during recconect */
+  bool is_disconnect_req;
+
   QueueHandle_t queue;
 } module_ctx_t;
 
 typedef enum
 {
-  TIMER_ID_TIMEOUT_INIT,
+  TIMER_ID_DISABLE_AP,
   TIMER_ID_LAST
 } timer_id;
+
+typedef enum
+{
+  WIFI_DRV_ERR_OK,
+  WIFI_DRV_ERR_CONNECTED,
+  WIFI_DRV_ERR_DISCONNECTED,
+  WIFI_DRV_ERR_FAIL,
+  WIFI_DRV_ERR_LAST
+} wifi_drv_err_t;
+
+typedef enum
+{
+  REQUEST_INIT,
+  REQUEST_START_CLIENT,
+  REQUEST_CONNECT,
+  REQUEST_CONNECTED,
+  REQUEST_START_SERVER,
+  REQUEST_ERROR_CONNECT,
+} request_t;
 
 /* Private variables ---------------------------------------------------------*/
 
 static module_ctx_t ctx;
 
 /* Private functions declaration ---------------------------------------------*/
-static void _timeout_init_cb( TimerHandle_t xTimer );
+static void _disable_ap_cb( TimerHandle_t xTimer );
 
-static void _state_disabled_event_init_request( const app_event_t* event );
+static void _state_disabled_request_init( const app_event_t* event );
 
-static void _state_init_event_init_request( const app_event_t* event );
-static void _state_init_event_init_response( const app_event_t* event );
-static void _state_init_event_init_module_response( const app_event_t* event );
-static void _state_init_event_timeout_init( const app_event_t* event );
+static void _state_init_request_init( const app_event_t* event );
 
-static void _state_idle_event_wifi_connect_status( const app_event_t* event );
+static void _state_common_request_connect( const app_event_t* event );
+
+static void _state_client_request_start_client( const app_event_t* event );
+static void _state_client_request_connected( const app_event_t* event );
+static void _state_client_request_start_server( const app_event_t* event );
+static void _state_client_request_error_connect( const app_event_t* event );
+
+static void _state_server_request_connected( const app_event_t* event );
+static void _state_server_request_start_client( const app_event_t* event );
+static void _state_server_request_start_server( const app_event_t* event );
+static void _state_server_request_error_connect( const app_event_t* event );
 
 /* Status callbacks declaration. ---------------------------------------------*/
 static const struct app_events_handler _disabled_state_handler_array[] =
   {
-    EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
+    EVENT_ITEM( REQUEST_INIT, _state_disabled_request_init ),
 };
 
 static const struct app_events_handler _init_state_handler_array[] =
   {
-    EVENT_ITEM( MSG_ID_INIT_REQ, _state_init_event_init_request ),
-    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_INIT_RES, _state_init_event_init_response ),
-    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_TIMEOUT_INIT, _state_init_event_timeout_init ),
-    EVENT_ITEM( MSG_ID_INIT_RES, _state_init_event_init_module_response ),
+    EVENT_ITEM( REQUEST_INIT, _state_init_request_init ),
 };
 
-static const struct app_events_handler _idle_state_handler_array[] =
+static const struct app_events_handler _client_state_handler_array[] =
   {
-    EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_event_init_request ),
-    EVENT_ITEM( MSG_ID_NETWORK_MANAGER_WIFI_CONNECT_STATUS, _state_idle_event_wifi_connect_status ),
+    EVENT_ITEM( REQUEST_START_CLIENT, _state_client_request_start_client ),
+    EVENT_ITEM( REQUEST_CONNECT, _state_common_request_connect ),
+    EVENT_ITEM( REQUEST_CONNECTED, _state_client_request_connected ),
+    EVENT_ITEM( REQUEST_START_SERVER, _state_client_request_start_server ),
+    EVENT_ITEM( REQUEST_ERROR_CONNECT, _state_client_request_error_connect ),
+};
+
+static const struct app_events_handler _server_state_handler_array[] =
+  {
+    EVENT_ITEM( REQUEST_CONNECT, _state_common_request_connect ),
+    EVENT_ITEM( REQUEST_CONNECTED, _state_server_request_connected ),
+    EVENT_ITEM( REQUEST_START_SERVER, _state_server_request_start_server ),
+    EVENT_ITEM( REQUEST_ERROR_CONNECT, _state_server_request_error_connect ),
+    EVENT_ITEM( REQUEST_START_CLIENT, _state_server_request_start_client ),
 };
 
 struct state_context
@@ -125,7 +171,7 @@ static const struct state_context module_state[STATE_TOP] =
 
 static app_timer_t timers[] =
   {
-    TIMER_ITEM( TIMER_ID_TIMEOUT_INIT, _timeout_init_cb, 1000, "NetworkTimeoutInit" ) };
+    TIMER_ITEM( TIMER_ID_DISABLE_AP, _disable_ap_cb, 5000, "NetworkTimeoutInit" ) };
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -141,7 +187,7 @@ static void _change_state( module_state_t new_state )
   ctx.state = new_state;
 }
 
-static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t data_size )
+static void _send_internal_event( request_t id, const void* data, uint32_t data_size )
 {
   app_event_t event = {};
   if ( data_size == 0 )
@@ -156,124 +202,203 @@ static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t da
   NetworkManagerPostMsg( &event );
 }
 
-static void _timeout_init_cb( TimerHandle_t xTimer )
+static void _wifi_get_ip_address_cb( void )
 {
-  _send_internal_event( MSG_ID_NETWORK_MANAGER_TIMEOUT_INIT, NULL, 0 );
+  _send_internal_event( REQUEST_CONNECTED, NULL, 0 );
+}
+
+static void _wifi_get_disconnected_cb( void )
+{
+  if ( ctx.is_disconnect_req == false )
+  {
+    _send_internal_event( REQUEST_ERROR_CONNECT, NULL, 0 );
+  }
+}
+
+static void _disable_ap_cb( TimerHandle_t xTimer )
+{
+  _send_internal_event( REQUEST_START_CLIENT, NULL, 0 );
+}
+
+static void _start_client_services( void )
+{
+  // app_event_t tcp_event = { 0 };
+  // app_event_t hawkbit_event = { 0 };
+  // app_event_t mqtt_event = { 0 };
+
+  // AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+  // AppEventPrepareNoData( &hawkbit_event, MSG_ID_HAWKBIT_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_HAWKBIT );
+  // AppEventPrepareNoData( &mqtt_event, MSG_ID_MQTT_ETH_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_MQTT_APP );
+
+  // TCPServer_PostMsg( &tcp_event );
+  // HawkbitProcess_PostMsg( &hawkbit_event );
+  // MQTTApp_PostMsg( &mqtt_event );
+}
+
+static void _stop_client_services( void )
+{
+  // app_event_t tcp_event = { 0 };
+  // app_event_t hawkbit_event = { 0 };
+  // app_event_t mqtt_event = { 0 };
+
+  // AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
+  // AppEventPrepareNoData( &hawkbit_event, MSG_ID_HAWKBIT_STOP_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_HAWKBIT );
+  // AppEventPrepareNoData( &mqtt_event, MSG_ID_MQTT_ETH_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_MQTT_APP );
+
+  // TCPServer_PostMsg( &tcp_event );
+  // HawkbitProcess_PostMsg( &hawkbit_event );
+  // MQTTApp_PostMsg( &mqtt_event );
+}
+
+static void _start_server_services( void )
+{
+  WiFiHTTPApp_Start();
+}
+
+static void _stop_server_services( void )
+{
+  WiFiHTTPApp_Stop();
 }
 
 /* Sate machine functions ---------------------------------------------------*/
 
-static void _state_disabled_event_init_request( const app_event_t* event )
+static void _state_disabled_request_init( const app_event_t* event )
 {
+  _send_internal_event( REQUEST_INIT, NULL, 0 );
   _change_state( INIT );
-  _send_internal_event( MSG_ID_INIT_REQ, NULL, 0 );
 }
 
-static void _state_init_event_init_request( const app_event_t* event )
+static void _state_init_request_init( const app_event_t* event )
 {
-  ctx.modules_init = 0;
-  app_event_t event_send = { 0 };
-
-  /* WiFi*/
-  AppEventPrepareNoData( &event_send, MSG_ID_INIT_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_WIFI_DRV );
-  WifiDrvPostMsg( &event_send );
-
-  /* TCPServer */
-  AppEventPrepareNoData( &event_send, MSG_ID_INIT_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
-  TCPServer_PostMsg( &event_send );
-
-  AppTimerStart( timers, TIMER_ID_TIMEOUT_INIT );
-}
-
-static void _state_init_event_init_response( const app_event_t* event )
-{
-  bool result = false;
-  app_event_t response = { 0 };
-  if ( ctx.wifi_init_status )
+  // if ( wifiDrvIsReadData() == true )
+  // {
+  //   _change_state( CLIENT );
+  //   _send_internal_event( REQUEST_START_CLIENT, NULL, 0 );
+  // }
+  // else
   {
-    _change_state( IDLE );
-    result = true;
+    _change_state( SERVER );
+    _send_internal_event( REQUEST_START_SERVER, NULL, 0 );
   }
-  else
-  {
-    _change_state( DISABLED );
-    AppEventPrepareNoData( &response, MSG_ID_DEINIT_REQ, APP_EVENT_NETWORK_MANAGER, APP_EVENT_WIFI_DRV );
-    WifiDrvPostMsg( &response );
-  }
-  AppEventPrepareWithData( &response, MSG_ID_INIT_RES, APP_EVENT_NETWORK_MANAGER, APP_EVENT_APP_MANAGER, &result, sizeof( result ) );
-  AppManagerPostMsg( &response );
-
-  AppTimerStop( timers, TIMER_ID_TIMEOUT_INIT );
+  ctx.is_connected = false;
 }
 
-static void _state_init_event_init_module_response( const app_event_t* event )
+static void _state_common_request_connect( const app_event_t* event )
 {
-  if ( event->src == APP_EVENT_WIFI_DRV )
+  wifiConData_t data = { 0 };
+  bool is_get_data = AppEventGetData( event, &data, sizeof( data ) );
+  if ( is_get_data )
   {
-    ctx.modules_init++;
-    wifi_drv_err_t err = 0;
-    if ( AppEventGetData( event, &err, sizeof( err ) ) == false )
+    wifiDrvSetAPName( data.ssid, strlen( data.ssid ) );
+    wifiDrvSetPassword( data.password, strlen( data.password ) );
+  }
+  if ( ctx.is_connected == true )
+  {
+    _stop_client_services();
+    ctx.is_disconnect_req = true;
+    wifiDrvDisconnect();
+    /* Wait to disconnect */
+    int cnt = 0;
+    while ( wifiDrvReadyToConnect() == false && cnt < 30 )
     {
-      LOG( PRINT_ERROR, "%s Cannot get data from event", __func__ );
-      _change_state( DISABLED );
-      return;
+      vTaskDelay( MS2ST( 100 ) );
     }
-
-    ctx.wifi_init_status = err == WIFI_DRV_ERR_OK;
+    assert( wifiDrvReadyToConnect() );
+    ctx.is_disconnect_req = false;
   }
-  else if ( event->src == APP_EVENT_TCP_SERVER )
-  {
-    ctx.modules_init++;
-  }
-
-  if ( ctx.modules_init == 2 )
-  {
-    _send_internal_event( MSG_ID_NETWORK_MANAGER_INIT_RES, NULL, 0 );
-  }
+  wifiDrvConnect();
 }
 
-static void _state_init_event_timeout_init( const app_event_t* event )
+static void _state_client_request_start_client( const app_event_t* event )
 {
-  _send_internal_event( MSG_ID_NETWORK_MANAGER_INIT_RES, NULL, 0 );
+  wifiConData_t data = { 0 };
+  bool is_get_data = AppEventGetData( event, &data, sizeof( data ) );
+
+  if ( ctx.wifi_state != WIFI_CLIENT )
+  {
+    wifiDrvSetWifiType( T_WIFI_TYPE_CLIENT );
+    wifiDrvStart();
+    ctx.wifi_state = WIFI_CLIENT;
+  }
+
+  if ( is_get_data )
+  {
+    wifiDrvSetAPName( data.ssid, strlen( data.ssid ) );
+    wifiDrvSetPassword( data.password, strlen( data.password ) );
+  }
+  ctx.is_connected = false;
+  _send_internal_event( REQUEST_CONNECT, NULL, 0 );
 }
 
-static void _state_idle_event_wifi_connect_status( const app_event_t* event )
+static void _state_client_request_connected( const app_event_t* event )
 {
-  wifi_drv_err_t err = 0;
-  if ( AppEventGetData( event, &err, sizeof( err ) ) == false )
-  {
-    LOG( PRINT_ERROR, "%s Cannot get data from event", __func__ );
-    _change_state( DISABLED );
-    return;
-  }
+  ctx.is_connected = true;
+  _start_client_services();
+}
 
-  app_event_t tcp_event = { 0 };
-  app_event_t ota_event = { 0 };
-  app_event_t mqtt_event = { 0 };
+static void _state_client_request_start_server( const app_event_t* event )
+{
+  ctx.wifi_state = WIFI_STOP;
+  wifiDrvStop();
+  _stop_client_services();
+  _change_state( SERVER );
+  _send_internal_event( REQUEST_START_SERVER, NULL, 0 );
+  ctx.is_connected = false;
+}
 
-  if ( err == WIFI_DRV_ERR_CONNECTED )
+static void _state_client_request_error_connect( const app_event_t* event )
+{
+  _stop_client_services();
+  if ( ctx.is_connected == false )
   {
-    AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
-    AppEventPrepareNoData( &ota_event, MSG_ID_OTA_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_OTA );
-    AppEventPrepareNoData( &mqtt_event, MSG_ID_MQTT_ETH_CONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_MQTT_APP );
-  }
-  else if ( err == WIFI_DRV_ERR_DISCONNECTED )
-  {
-    AppEventPrepareNoData( &tcp_event, MSG_ID_TCP_SERVER_ETHERNET_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_TCP_SERVER );
-    AppEventPrepareNoData( &ota_event, MSG_ID_OTA_STOP_POLL_SERVER, APP_EVENT_NETWORK_MANAGER, APP_EVENT_OTA );
-    AppEventPrepareNoData( &mqtt_event, MSG_ID_MQTT_ETH_DISCONNECTED, APP_EVENT_NETWORK_MANAGER, APP_EVENT_MQTT_APP );
+    _send_internal_event( REQUEST_START_SERVER, NULL, 0 );
   }
   else
   {
-    assert( 0 );
+    _send_internal_event( REQUEST_CONNECT, NULL, 0 );
+    ctx.is_connected = false;
   }
-  TCPServer_PostMsg( &tcp_event );
-  OTA_PostMsg( &ota_event );
-  MQTTApp_PostMsg( &mqtt_event );
+}
+
+static void _state_server_request_connected( const app_event_t* event )
+{
+  ctx.is_connected = true;
+  AppTimerStart( timers, TIMER_ID_DISABLE_AP );
+}
+
+static void _state_server_request_start_client( const app_event_t* event )
+{
+  ctx.wifi_state = WIFI_STOP;
+  ctx.is_connected = false;
+  _stop_server_services();
+  wifiDrvStop();
+  _change_state( CLIENT );
+  _send_internal_event( REQUEST_START_CLIENT, NULL, 0 );
+}
+
+static void _state_server_request_start_server( const app_event_t* event )
+{
+  if ( ctx.wifi_state != WIFI_SERVER )
+  {
+    wifiDrvSetWifiType( T_WIFI_TYPE_CLI_SER );
+    wifiDrvStart();
+    ctx.wifi_state = WIFI_SERVER;
+  }
+
+  _start_server_services();
+}
+
+static void _state_server_request_error_connect( const app_event_t* event )
+{
+  ctx.is_connected = false;
+  AppTimerStop( timers, TIMER_ID_DISABLE_AP );
 }
 
 static void _task( void* pv )
 {
+  wifiDrvRegisterConnectCb( _wifi_get_ip_address_cb );
+  wifiDrvRegisterDisconnectCb( _wifi_get_disconnected_cb );
+  _send_internal_event( REQUEST_INIT, NULL, 0 );
   while ( 1 )
   {
     app_event_t event = { 0 };

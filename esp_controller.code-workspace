@@ -4,7 +4,7 @@
             "path": "."
         },
         {
-            "path": "../esp_idf"
+            "path": "../esp-idf"
         },
         {
             "path": "../../Espressif/frameworks/esp-idf-v5.1"
@@ -13,7 +13,7 @@
     "settings": {
         "idf.customExtraVars": "",
         "terminal.integrated.env.windows": {
-            "IDF_PATH": "${workspaceFolder}/../esp_tools/esp_idf",
+            "IDF_PATH": "${workspaceFolder}/../esp_tools/esp-idf",
             "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/esp_idf;C:\\msys64\\usr\\bin",
             "OPENOCD_SCRIPTS": "${workspaceFolder}/../esp_tools/tools/openocd-esp32/v0.11.0-esp32-20220706/openocd-esp32/share/openocd/scripts",
             "CHERE_INVOKING": "1",
@@ -24,7 +24,7 @@
                 "path": "C:\\WINDOWS\\System32\\cmd.exe",
                 "args": [
                     "/K",
-                    "${workspaceFolder}/../esp_tools/idf_cmd_init.bat esp-idf-724e6199ae570d882b9708a93a25ce51"
+                    "${workspaceFolder}/../esp_tools/idf_cmd_init.bat esp-idf-4d199c3be3f31bfbcc7f334fd2c30ae2"
                 ],
             },
             "MSYS2 Bash": {
@@ -147,10 +147,27 @@
             "esp_spiffs.h": "c",
             "complex": "c",
             "memory": "c",
-            "istream": "c"
+            "istream": "c",
+            "fast_add.h": "c",
+            "semphr.h": "c",
+            "hawkbit_config.c": "c",
+            "inttypes.h": "c",
+            "hawkbit_process.h": "c",
+            "ota_drv.h": "c",
+            "cstring": "c",
+            "tcp_server.h": "c",
+            "mongoose.h": "c",
+            "ow_device_ds18x20.h": "c",
+            "tlsf.h": "c",
+            "string.h": "c",
+            "tcp_transport.h": "c",
+            "dev_config.h": "c",
+            "cstdlib": "c",
+            "mqtt_json_parser.h": "c"
         },
         "cSpell.words": [
             "Dmytro",
+            "HAWKBIT",
             "lwjson",
             "Shevchenko"
         ],

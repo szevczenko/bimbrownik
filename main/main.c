@@ -5,16 +5,17 @@
 #include "app_events.h"
 #include "app_manager.h"
 #include "dev_config.h"
+#include "device_manager.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "hawkbit_process.h"
 #include "mqtt_app.h"
 #include "network_manager.h"
 #include "nvs_flash.h"
 #include "nvs_sync.h"
-#include "ota.h"
 #include "ow/devices/ow_device_ds18x20.h"
 #include "ow/ow.h"
 #include "ow_esp32.h"
@@ -22,7 +23,6 @@
 #include "tcp_server.h"
 #include "temperature.h"
 #include "wifidrv.h"
-#include "device_manager.h"
 
 static const char* TAG = "MAIN";
 
@@ -111,15 +111,14 @@ void app_main( void )
 {
   app_init();
 
-  configInit();
-  wifiDrvInit( WIFI_TYPE_DEVICE );
+  wifiDrvInit();
   NetworkManagerInit();
-  TemperatureInit();
-  TCPServer_Init();
-  OTA_Init();
-  MQTTApp_Init();
-  DeviceManager_Init();
-  // screenInit();
+  // TemperatureInit();
+  // TCPServer_Init();
+  // HawkbitProcess_Init();
+  // MQTTApp_Init();
+  // DeviceManager_Init();
+  // // screenInit();
 
-  AppManagerInit();
+  // AppManagerInit();
 }

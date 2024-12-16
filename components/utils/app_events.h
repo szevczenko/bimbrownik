@@ -20,7 +20,7 @@
   EVENT_TASK( NETWORK_MANAGER ) \
   EVENT_TASK( WIFI_DRV )        \
   EVENT_TASK( TCP_SERVER )      \
-  EVENT_TASK( OTA )             \
+  EVENT_TASK( HAWKBIT )         \
   EVENT_TASK( MQTT_APP )        \
   EVENT_TASK( DEV_MANAGER )     \
   EVENT_TASK( TEMP_DRV )
@@ -28,10 +28,9 @@
 /* Public macro --------------------------------------------------------------*/
 #define ARRAY_SIZE( _array ) ( sizeof( _array ) / sizeof( ( _array )[0] ) )
 
-#define EVENT_ITEM( _id, _callback )         \
-  {                                          \
-    .id = ( _id ), .callback = ( _callback ) \
-  }
+#define EVENT_ITEM( _id, _callback ) \
+  {                                  \
+    .id = ( _id ), .callback = ( _callback ) }
 
 /* Public types --------------------------------------------------------------*/
 
