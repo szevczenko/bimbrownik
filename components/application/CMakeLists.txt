@@ -3,5 +3,5 @@ idf_component_register(SRCS "network_manager.c" "api_temperature_sensor.c" "hawk
                             "api_mqtt.c" "device_manager.c" "api_config.c" "api.c" "app_manager.c" 
                     INCLUDE_DIRS "."
                     REQUIRES utils
-                    PRIV_REQUIRES spiffs drivers efuse esp_http_client app_update esp-tls nvs_flash backend mqtt wifi_http_app)
+                    PRIV_REQUIRES spiffs drivers efuse esp_http_client app_update esp-tls nvs_flash backend mqtt wifi_http_app mongoose_drv)
 

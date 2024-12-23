@@ -14,7 +14,7 @@
         "idf.customExtraVars": "",
         "terminal.integrated.env.windows": {
             "IDF_PATH": "${workspaceFolder}/../esp_tools/esp-idf",
-            "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/esp_idf;C:\\msys64\\usr\\bin",
+            "PATH": "${env:PATH};${workspaceFolder}/../esp_tools;${workspaceFolder}/../esp_tools/esp-idf;C:\\msys64\\usr\\bin",
             "OPENOCD_SCRIPTS": "${workspaceFolder}/../esp_tools/tools/openocd-esp32/v0.11.0-esp32-20220706/openocd-esp32/share/openocd/scripts",
             "CHERE_INVOKING": "1",
             "PYTHONNOUSERSITE": "True"
@@ -24,7 +24,7 @@
                 "path": "C:\\WINDOWS\\System32\\cmd.exe",
                 "args": [
                     "/K",
-                    "${workspaceFolder}/../esp_tools/idf_cmd_init.bat esp-idf-4d199c3be3f31bfbcc7f334fd2c30ae2"
+                    "${workspaceFolder}/../esp_tools/idf_cmd_init.bat esp-idf-724e6199ae570d882b9708a93a25ce51"
                 ],
             },
             "MSYS2 Bash": {
@@ -163,7 +163,11 @@
             "tcp_transport.h": "c",
             "dev_config.h": "c",
             "cstdlib": "c",
-            "mqtt_json_parser.h": "c"
+            "mqtt_json_parser.h": "c",
+            "mongoose_task.h": "c",
+            "cstdint": "c",
+            "charconv": "c",
+            "http_server.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

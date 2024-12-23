@@ -20,16 +20,16 @@
 /**
  * @brief   Init mqtt app task.
  */
-void MQTTApp_Init( void );
+void MqttApp_Init( void );
 
 /**
- * @brief   Sends event to mqtt app task.
+ * @brief   Deinit mqtt app task.
  */
-void MQTTApp_PostMsg( app_event_t* event );
+void MqttApp_Deinit( void );
 
 /**
  * @brief   Post data.
  */
-bool MqttApp_PostData( const char* topic, const char* msg );
+bool MqttApp_PostData( const char* topic, const char* message, int qos );
 
 #endif

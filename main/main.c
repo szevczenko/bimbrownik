@@ -12,6 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hawkbit_process.h"
+#include "mongoose_task.h"
 #include "mqtt_app.h"
 #include "network_manager.h"
 #include "nvs_flash.h"
@@ -20,7 +21,6 @@
 #include "ow/ow.h"
 #include "ow_esp32.h"
 #include "screen.h"
-#include "tcp_server.h"
 #include "temperature.h"
 #include "wifidrv.h"
 
@@ -112,13 +112,14 @@ void app_main( void )
   app_init();
 
   wifiDrvInit();
+  MongooseTask_Init();
   NetworkManagerInit();
   // TemperatureInit();
   // TCPServer_Init();
   // HawkbitProcess_Init();
   // MQTTApp_Init();
-  // DeviceManager_Init();
+  DeviceManager_Init();
   // // screenInit();
 
-  // AppManagerInit();
+  AppManagerInit();
 }

@@ -18,9 +18,9 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "hawkbit_process.h"
-#include "wifi_http_app.h"
 #include "mqtt_app.h"
-#include "tcp_server.h"
+#include "http_server.h"
+#include "wifi_http_app.h"
 #include "wifidrv.h"
 
 /* Private macros ------------------------------------------------------------*/
@@ -232,7 +232,8 @@ static void _start_client_services( void )
 
   // TCPServer_PostMsg( &tcp_event );
   // HawkbitProcess_PostMsg( &hawkbit_event );
-  // MQTTApp_PostMsg( &mqtt_event );
+  MqttApp_Init();
+  HTTPServer_Init();
 }
 
 static void _stop_client_services( void )
@@ -247,7 +248,8 @@ static void _stop_client_services( void )
 
   // TCPServer_PostMsg( &tcp_event );
   // HawkbitProcess_PostMsg( &hawkbit_event );
-  // MQTTApp_PostMsg( &mqtt_event );
+  MqttApp_Deinit();
+  HTTPServer_Deinit();
 }
 
 static void _start_server_services( void )
@@ -270,12 +272,12 @@ static void _state_disabled_request_init( const app_event_t* event )
 
 static void _state_init_request_init( const app_event_t* event )
 {
-  // if ( wifiDrvIsReadData() == true )
-  // {
-  //   _change_state( CLIENT );
-  //   _send_internal_event( REQUEST_START_CLIENT, NULL, 0 );
-  // }
-  // else
+  if ( wifiDrvIsReadData() == true )
+  {
+    _change_state( CLIENT );
+    _send_internal_event( REQUEST_START_CLIENT, NULL, 0 );
+  }
+  else
   {
     _change_state( SERVER );
     _send_internal_event( REQUEST_START_SERVER, NULL, 0 );
