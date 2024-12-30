@@ -167,7 +167,8 @@
             "mongoose_task.h": "c",
             "cstdint": "c",
             "charconv": "c",
-            "http_server.h": "c"
+            "http_server.h": "c",
+            "optional": "c"
         },
         "cSpell.words": [
             "Dmytro",

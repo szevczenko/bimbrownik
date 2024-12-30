@@ -18,10 +18,11 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "hawkbit_process.h"
-#include "mqtt_app.h"
 #include "http_server.h"
+#include "mqtt_app.h"
 #include "wifi_http_app.h"
 #include "wifidrv.h"
+#include "mdns_service.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[NetworkManager] "
@@ -234,6 +235,7 @@ static void _start_client_services( void )
   // HawkbitProcess_PostMsg( &hawkbit_event );
   MqttApp_Init();
   HTTPServer_Init();
+  mDNS_Start();
 }
 
 static void _stop_client_services( void )
@@ -250,6 +252,7 @@ static void _stop_client_services( void )
   // HawkbitProcess_PostMsg( &hawkbit_event );
   MqttApp_Deinit();
   HTTPServer_Deinit();
+  mDNS_Stop();
 }
 
 static void _start_server_services( void )

@@ -11,9 +11,10 @@
 #include <string.h>
 
 #include "app_config.h"
-#include "json_parser.h"
-#include "hawkbit_process.h"
+#include "error_code.h"
 #include "hawkbit_config.h"
+#include "hawkbit_process.h"
+#include "http_server.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[API HAWKBIT] "
@@ -28,168 +29,210 @@
 
 #define ARRAY_LEN( _array ) sizeof( _array ) / sizeof( _array[0] )
 
+#define API_HAWKBIT_URI "/api/hawkbit"
+
+typedef struct
+{
+  const char* name;
+  hawkbit_config_value_t type;
+  bool ( *set )( hawkbit_config_value_t key, const char* str, size_t str_len );
+  const char* ( *get )( hawkbit_config_value_t key );
+} token_t;
+
 /* Private functions declaration ---------------------------------------------*/
 
-static void _set_address( const char* str, size_t str_len, uint32_t iterator );
-static void _set_tenant( const char* str, size_t str_len, uint32_t iterator );
-static void _set_tls( bool value, uint32_t iterator );
-static void _set_polling_time( int value, uint32_t iterator );
-static void _set_token( const char* str, size_t str_len, uint32_t iterator );
+static bool set_string_config( hawkbit_config_value_t key, const char* str, size_t str_len );
+static const char* get_string_config( hawkbit_config_value_t key );
+static bool set_bool_config( hawkbit_config_value_t key, const char* str, size_t str_len );
+static const char* get_bool_config( hawkbit_config_value_t key );
+static bool set_int_config( hawkbit_config_value_t key, const char* str, size_t str_len );
+static const char* get_int_config( hawkbit_config_value_t key );
 
 /* Private variables ---------------------------------------------------------*/
 
-static json_parse_token_t hawkbit_tokens[] = {
-  {.string_cb = _set_address,
-   .name = "address"  },
-  { .string_cb = _set_tenant,
-   .name = "tenant"   },
-  { .bool_cb = _set_tls,
-   .name = "tls"      },
-  { .int_cb = _set_polling_time,
-   .name = "poll_time"},
-  { .string_cb = _set_token,
-   .name = "token"    },
+static token_t hawkbit_tokens[] = {
+  {.name = "address",   .type = HAWKBIT_CONFIG_VALUE_ADDRESS,      .set = set_string_config, .get = get_string_config},
+  {.name = "tenant",    .type = HAWKBIT_CONFIG_VALUE_TENANT,       .set = set_string_config, .get = get_string_config},
+  {.name = "tls",       .type = HAWKBIT_CONFIG_VALUE_TLS,          .set = set_bool_config,   .get = get_bool_config  },
+  {.name = "poll_time", .type = HAWKBIT_CONFIG_VALUE_POLLING_TIME, .set = set_int_config,    .get = get_int_config   },
+  {.name = "token",     .type = HAWKBIT_CONFIG_VALUE_TOKEN,        .set = set_string_config, .get = get_string_config},
 };
 
 static const char* response;
-static error_code_t err_code;
 
 /* Private functions ---------------------------------------------------------*/
 
-static void _init_exec_command( void )
+static int _handle_save_configuration( struct mg_str* uri, struct mg_str* data, HTTPServerMethod_t method, char* buffer, size_t buffer_size )
+{
+  snprintf( buffer, buffer_size - 1, "%s/save", API_HAWKBIT_URI );
+  struct mg_str save_uri = mg_str( buffer );
+  if ( mg_match( *uri, save_uri, NULL ) )
+  {
+    if ( method != HTTP_SERVER_METHOD_POST )
+    {
+      response = "Method not allowed";
+      return 405;
+    }
+    if ( HAWKBITConfig_Save() )
+    {
+      response = "OK";
+      return 200;
+    }
+    else
+    {
+      response = "Fail to save configuration";
+      return 500;
+    }
+    LOG( PRINT_ERROR, "%s Fail to save configuration", __func__ );
+  }
+  return 0;
+}
+
+static HTTPServerResponse_t _parse_hawkbit_cb( struct mg_str* uri, struct mg_str* data, HTTPServerMethod_t method )
 {
   response = NULL;
-  err_code = ERROR_CODE_OK;
+  char buffer[128];
+  HTTPServerResponse_t resp = { 0 };
+
+  // Handle save configuration
+  if ( _handle_save_configuration( uri, data, method, buffer, sizeof( buffer ) ) )
+  {
+    resp.msg = "OK";
+    resp.code = 200;
+    return resp;
+  }
+
+  // Handle other configurations
+  for ( int i = 0; i < ARRAY_LEN( hawkbit_tokens ); i++ )
+  {
+    snprintf( buffer, sizeof( buffer ) - 1, "%s/%s", API_HAWKBIT_URI, hawkbit_tokens[i].name );
+    struct mg_str parameters_uri = mg_str( buffer );
+    if ( mg_match( *uri, parameters_uri, NULL ) )
+    {
+      switch ( method )
+      {
+        case HTTP_SERVER_METHOD_GET:
+          {
+            const char* value = hawkbit_tokens[i].get( hawkbit_tokens[i].type );
+            if ( value )
+            {
+              resp.msg = value;
+              resp.code = 200;
+            }
+            else
+            {
+              resp.msg = "Fail to get value";
+              resp.code = 400;
+            }
+            return resp;
+          }
+
+        case HTTP_SERVER_METHOD_POST:
+          assert( data );
+          if ( hawkbit_tokens[i].set( hawkbit_tokens[i].type, data->ptr, data->len ) )
+          {
+            resp.msg = "OK";
+            resp.code = 200;
+          }
+          else
+          {
+            resp.msg = response ? response : "Fail to set value";
+            resp.code = 400;
+          }
+          return resp;
+
+        default:
+          resp.msg = "Method not allowed";
+          resp.code = 405;
+          return resp;
+      }
+    }
+  }
+  LOG( PRINT_INFO, "%s %d Parameter not exist %.*s", __func__, uri->len, uri->len, uri->ptr );
+  resp.msg = "Parameter not exist";
+  resp.code = 400;
+  return resp;
 }
 
-static error_code_t _get_response( char* resp, size_t respLen )
-{
-  if ( NULL != response )
-  {
-    snprintf( resp, respLen, "\"%s\"", response );
-  }
-  return err_code;
-}
-
-static void _set_error( const char* error_msg )
-{
-  err_code = ERROR_CODE_FAIL;
-  response = error_msg;
-}
-
-error_code_t _get_hawkbit_config( char* resp, size_t respLen )
-{
-  static char address[HAWKBIT_CONFIG_STR_SIZE];
-  static char tenant[HAWKBIT_CONFIG_STR_SIZE];
-  static char token[HAWKBIT_CONFIG_STR_SIZE];
-  bool use_tls;
-  int polling_time;
-
-  if ( false == HAWKBITConfig_GetString( address, HAWKBIT_CONFIG_VALUE_ADDRESS, sizeof( address ) ) )
-  {
-    strncpy( resp, "Fail get address value", respLen );
-    return ERROR_CODE_FAIL;
-  }
-  if ( false == HAWKBITConfig_GetString( tenant, HAWKBIT_CONFIG_VALUE_TENANT, sizeof( tenant ) ) )
-  {
-    strncpy( resp, "Fail get tenant value", respLen );
-    return ERROR_CODE_FAIL;
-  }
-  if ( false == HAWKBITConfig_GetString( token, HAWKBIT_CONFIG_VALUE_TOKEN, sizeof( token ) ) )
-  {
-    strncpy( resp, "Fail get token value", respLen );
-    return ERROR_CODE_FAIL;
-  }
-  if ( false == HAWKBITConfig_GetBool( &use_tls, HAWKBIT_CONFIG_VALUE_TLS ) )
-  {
-    strncpy( resp, "Fail get tls value", respLen );
-    return ERROR_CODE_FAIL;
-  }
-  if ( false == HAWKBITConfig_GetInt( &polling_time, HAWKBIT_CONFIG_VALUE_POLLING_TIME ) )
-  {
-    strncpy( resp, "Fail get polling time value", respLen );
-    return ERROR_CODE_FAIL;
-  }
-  snprintf( resp, respLen, "{\"address\":\"%s\",\"tenant\":\"%s\",\"tls\":%s,\"poll_time\":%d,\"token\":\"%s\"}",
-            address, tenant, use_tls ? "true" : "false", polling_time, token );
-  return ERROR_CODE_OK;
-}
-
-error_code_t _hawkbit_save_configuration( char* resp, size_t respLen )
-{
-  if ( HAWKBITConfig_Save() )
-  {
-    return ERROR_CODE_OK;
-  }
-  return ERROR_CODE_FAIL;
-}
-
-static void _set_address( const char* str, size_t str_len, uint32_t iterator )
+static bool set_string_config( hawkbit_config_value_t key, const char* str, size_t str_len )
 {
   if ( str_len >= HAWKBIT_CONFIG_STR_SIZE )
   {
-    _set_error( "Invalid size of address" );
-    return;
+    response = "Invalid size of string";
+    return false;
   }
   char buff[HAWKBIT_CONFIG_STR_SIZE] = {};
   memcpy( buff, str, str_len );
-  if ( false == HAWKBITConfig_SetString( buff, HAWKBIT_CONFIG_VALUE_ADDRESS ) )
+  if ( !HAWKBITConfig_SetString( buff, key ) )
   {
-    _set_error( "Fail set address value" );
+    response = "Fail set string value";
+    return false;
   }
+  return true;
 }
 
-static void _set_token( const char* str, size_t str_len, uint32_t iterator )
+static const char* get_string_config( hawkbit_config_value_t key )
 {
-  if ( str_len >= HAWKBIT_CONFIG_STR_SIZE )
+  static char value[HAWKBIT_CONFIG_STR_SIZE];
+  if ( !HAWKBITConfig_GetString( value, key, sizeof( value ) ) )
   {
-    _set_error( "Invalid size of address" );
-    return;
+    return '\0';
   }
-  char buff[HAWKBIT_CONFIG_STR_SIZE] = {};
-  memcpy( buff, str, str_len );
-  if ( false == HAWKBITConfig_SetString( buff, HAWKBIT_CONFIG_VALUE_TOKEN ) )
-  {
-    _set_error( "Fail set token value" );
-  }
+  return value;
 }
 
-static void _set_tenant( const char* str, size_t str_len, uint32_t iterator )
+static bool set_bool_config( hawkbit_config_value_t key, const char* str, size_t str_len )
 {
-  if ( str_len >= HAWKBIT_CONFIG_STR_SIZE )
+  bool value = ( strncmp( str, "true", str_len ) == 0 );
+  if ( !HAWKBITConfig_SetBool( value, key ) )
   {
-    _set_error( "Invalid size of tenant" );
-    return;
+    response = "Fail set bool value";
+    return false;
   }
-  char buff[HAWKBIT_CONFIG_STR_SIZE] = {};
-  memcpy( buff, str, str_len );
-  if ( false == HAWKBITConfig_SetString( buff, HAWKBIT_CONFIG_VALUE_TENANT ) )
-  {
-    _set_error( "Fail set tenant value" );
-  }
+  return true;
 }
 
-static void _set_tls( bool value, uint32_t iterator )
+static const char* get_bool_config( hawkbit_config_value_t key )
 {
-  if ( false == HAWKBITConfig_SetBool( value, HAWKBIT_CONFIG_VALUE_TLS ) )
+  bool value;
+  if ( !HAWKBITConfig_GetBool( &value, key ) )
   {
-    _set_error( "Fail set tenant value" );
+    return '\0';
   }
+  return value ? "true" : "false";
 }
 
-static void _set_polling_time( int value, uint32_t iterator )
+static bool set_int_config( hawkbit_config_value_t key, const char* str, size_t str_len )
 {
-  if ( false == HAWKBITConfig_SetInt( value, HAWKBIT_CONFIG_VALUE_POLLING_TIME ) )
+  int value = atoi( str );
+  if ( !HAWKBITConfig_SetInt( value, key ) )
   {
-    _set_error( "Fail set polling time value" );
+    response = "Fail set int value";
+    return false;
   }
+  return true;
+}
+
+static const char* get_int_config( hawkbit_config_value_t key )
+{
+  static int value;
+  static char value_str[16];
+  if ( !HAWKBITConfig_GetInt( &value, key ) )
+  {
+    return '\0';
+  }
+  snprintf( value_str, sizeof( value_str ), "%d", value );
+  return value_str;
 }
 
 /* Public functions -----------------------------------------------------------*/
 
 void API_HAWKBIT_Init( void )
 {
-  JSONParser_RegisterMethod( hawkbit_tokens, ARRAY_LEN( hawkbit_tokens ), "setHawkbit", _init_exec_command, _get_response );
-  JSONParser_RegisterMethod( NULL, 0, "getHawkbit", NULL, _get_hawkbit_config );
-  JSONParser_RegisterMethod( NULL, 0, "saveHawkbit", NULL, _hawkbit_save_configuration );
+  HTTPServerApiToken_t token = {
+    .api_name = "hawkbit",
+    .cb = _parse_hawkbit_cb,
+  };
+
+  HTTPServer_AddApiToken( &token );
 }

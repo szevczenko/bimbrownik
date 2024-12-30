@@ -1,15 +1,16 @@
 #include <pthread.h>
+
+#include "app_config.h"
 #include "unity.h"
 #include "unity_fixture.h"
-#include "app_config.h"
 
 static void RunAllTests( void )
 {
-  RUN_TEST_GROUP(JsonParser);
+  RUN_TEST_GROUP( JsonParser );
+  RUN_TEST_GROUP( httpApi );
 }
 
 int main( int argc, const char* argv[] )
 {
-  configInit();
-  return UnityMain(argc, argv, RunAllTests);
+  return UnityMain( argc, argv, RunAllTests );
 }

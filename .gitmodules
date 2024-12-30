@@ -4,9 +4,6 @@
 [submodule "lib/Unity"]
 	path = lib/Unity
 	url = https://github.com/ThrowTheSwitch/Unity.git
-[submodule "lib/lwip"]
-	path = lib/lwip
-	url = https://github.com/lwip-tcpip/lwip.git
 [submodule "hq_components"]
 	path = hq_components
 	url = https://github.com/szevczenko/hq_components.git
