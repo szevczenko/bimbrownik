@@ -27,10 +27,11 @@ class DeviceListener(ServiceListener):
 
 def ScanDevices(name="Bimbrownik", scanning_time_s=3):
     """Return list of turples: (ip_address: str, port: int)"""
+    print("Scanning devices...")
     _deviceList.clear()
     zeroconf = Zeroconf()
     listener = DeviceListener(name)
-    browser = ServiceBrowser(zeroconf, "_remote._tcp.local.", listener)
+    browser = ServiceBrowser(zeroconf, "_remote._http.local.", listener)
     time.sleep(scanning_time_s)
     zeroconf.close()
     return _deviceList
