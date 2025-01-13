@@ -9,7 +9,6 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "app_config.h"
-#include "json_parser.h"
 
 /* Extern functions ---------------------------------------------------------*/
 extern void APITemperatureSensor_Init( void );

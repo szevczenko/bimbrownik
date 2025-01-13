@@ -17,7 +17,7 @@
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[AppEvent] "
-#define DEBUG_LVL   PRINT_INFO
+#define DEBUG_LVL   PRINT_ERROR
 
 #if CONFIG_DEBUG_APP_EVENT
 #define LOG( _lvl, ... ) \

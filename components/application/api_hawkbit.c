@@ -95,7 +95,7 @@ static HTTPServerResponse_t _parse_hawkbit_cb( struct mg_str* uri, struct mg_str
   HTTPServerResponse_t resp = { 0 };
 
   // Handle save configuration
-  if ( _handle_save_configuration( uri, data, method, buffer, sizeof( buffer ) ) )
+  if ( 0 != _handle_save_configuration( uri, data, method, buffer, sizeof( buffer ) ) )
   {
     resp.msg = "OK";
     resp.code = 200;
@@ -129,7 +129,7 @@ static HTTPServerResponse_t _parse_hawkbit_cb( struct mg_str* uri, struct mg_str
 
         case HTTP_SERVER_METHOD_POST:
           assert( data );
-          if ( hawkbit_tokens[i].set( hawkbit_tokens[i].type, data->ptr, data->len ) )
+          if ( hawkbit_tokens[i].set( hawkbit_tokens[i].type, data->buf, data->len ) )
           {
             resp.msg = "OK";
             resp.code = 200;
@@ -148,7 +148,7 @@ static HTTPServerResponse_t _parse_hawkbit_cb( struct mg_str* uri, struct mg_str
       }
     }
   }
-  LOG( PRINT_INFO, "%s %d Parameter not exist %.*s", __func__, uri->len, uri->len, uri->ptr );
+  LOG( PRINT_INFO, "%s %d Parameter not exist %.*s", __func__, uri->len, uri->len, uri->buf );
   resp.msg = "Parameter not exist";
   resp.code = 400;
   return resp;

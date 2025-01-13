@@ -1,3 +1,5 @@
 /build
 /managed_components
 /test/build
+/automatical_tests/__pycache__
+/automatical_tests/.pytest_cache

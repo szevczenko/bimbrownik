@@ -76,10 +76,10 @@ extern const char index_html_end[] asm( "_binary_index_html_end" );
 
 static void http_server_delete_handler( struct mg_connection* c, struct mg_str* uri, struct mg_http_message* data )
 {
-  LOG( PRINT_DEBUG, "DELETE %.*s", uri->len, uri->ptr );
+  LOG( PRINT_DEBUG, "DELETE %.*s", uri->len, uri->buf );
 
   /* DELETE /connect.json */
-  if ( mg_vcasecmp( uri, http_connect_url ) == 0 )
+  if ( mg_strcasecmp( *uri, mg_str( http_connect_url ) ) == 0 )
   {
     wifiDrvDisconnect();
     mg_http_reply( c, 200, DEFAULT_HEADERS, "" );
@@ -92,10 +92,10 @@ static void http_server_delete_handler( struct mg_connection* c, struct mg_str* 
 
 static void http_server_post_handler( struct mg_connection* c, struct mg_str* uri, struct mg_http_message* data )
 {
-  LOG( PRINT_DEBUG, "POST %.*s", uri->len, uri->ptr );
+  LOG( PRINT_DEBUG, "POST %.*s", uri->len, uri->buf );
 
   /* POST /connect.json */
-  if ( mg_vcasecmp( uri, http_connect_url ) == 0 )
+  if ( mg_strcasecmp( *uri, mg_str( http_connect_url ) ) == 0 )
   {
     /* len of values provided */
     struct mg_str* mg_ssid = mg_http_get_header( data, "X-Custom-ssid" );
@@ -103,8 +103,8 @@ static void http_server_post_handler( struct mg_connection* c, struct mg_str* ur
 
     if ( mg_ssid != NULL && mg_password != NULL )
     {
-      wifiDrvSetAPName( mg_ssid->ptr, mg_ssid->len );
-      wifiDrvSetPassword( mg_password->ptr, mg_password->len );
+      wifiDrvSetAPName( mg_ssid->buf, mg_ssid->len );
+      wifiDrvSetPassword( mg_password->buf, mg_password->len );
       wifiDrvConnect();
 
       mg_http_reply( c, 200, DEFAULT_HEADERS, "" );
@@ -123,7 +123,7 @@ static void http_server_post_handler( struct mg_connection* c, struct mg_str* ur
 
 static void http_server_get_handler( struct mg_connection* c, struct mg_str* uri, struct mg_http_message* data )
 {
-  LOG( PRINT_DEBUG, "GET %.*s", uri->len, uri->ptr );
+  LOG( PRINT_DEBUG, "GET %.*s", uri->len, uri->buf );
   struct mg_str mg_http_root_url = mg_str( http_root_url );
   struct mg_str mg_http_js_url = mg_str( http_js_url );
   struct mg_str mg_http_css_url = mg_str( http_css_url );
@@ -233,15 +233,15 @@ static void fn( struct mg_connection* c, int ev, void* ev_data )
   {
     struct mg_http_message* hm = (struct mg_http_message*) ev_data;
 
-    if ( mg_vcasecmp( &hm->method, "GET" ) == 0 )
+    if ( mg_strcasecmp( hm->method, mg_str( "GET" ) ) == 0 )
     {
       http_server_get_handler( c, &hm->uri, hm );
     }
-    else if ( mg_vcasecmp( &hm->method, "POST" ) == 0 )
+    else if ( mg_strcasecmp( hm->method, mg_str( "POST" ) ) == 0 )
     {
       http_server_post_handler( c, &hm->uri, hm );
     }
-    else if ( mg_vcasecmp( &hm->method, "DELETE" ) == 0 )
+    else if ( mg_strcasecmp( hm->method, mg_str( "DELETE" ) ) == 0 )
     {
       http_server_delete_handler( c, &hm->uri, hm );
     }

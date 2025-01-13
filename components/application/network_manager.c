@@ -102,6 +102,8 @@ typedef enum
 
 static module_ctx_t ctx;
 
+extern void API_Init( void );
+
 /* Private functions declaration ---------------------------------------------*/
 static void _disable_ap_cb( TimerHandle_t xTimer );
 
@@ -427,6 +429,7 @@ void NetworkManagerPostMsg( app_event_t* event )
 
 void NetworkManagerInit( void )
 {
+  API_Init();
   ctx.queue = xQueueCreate( 16, sizeof( app_event_t ) );
   assert( ctx.queue );
   AppTimersInit( timers, TIMER_ID_LAST );

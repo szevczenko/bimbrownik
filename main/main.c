@@ -11,6 +11,7 @@
 #include "esp_spiffs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "hawkbit_config.h"
 #include "hawkbit_process.h"
 #include "mongoose_task.h"
 #include "mqtt_app.h"
@@ -114,6 +115,9 @@ void app_main( void )
   wifiDrvInit();
   MongooseTask_Init();
   NetworkManagerInit();
+  ///// Remove this line after tests
+  HAWKBITConfig_Init();
+
   // TemperatureInit();
   // TCPServer_Init();
   // HawkbitProcess_Init();

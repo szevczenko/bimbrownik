@@ -168,7 +168,8 @@
             "cstdint": "c",
             "charconv": "c",
             "http_server.h": "c",
-            "optional": "c"
+            "optional": "c",
+            "mdns.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

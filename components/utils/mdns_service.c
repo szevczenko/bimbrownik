@@ -11,6 +11,7 @@
 
 #include "app_config.h"
 #include "esp_mac.h"
+#include "http_server.h"
 #include "mdns.h"
 
 /* Private macros ------------------------------------------------------------*/
@@ -57,11 +58,11 @@ void mDNS_Start( void )
 
   //structure with TXT records
   mdns_txt_item_t serviceTxtData[] = {
-    {"board", "esp32"}
+    { "board", "esp32" }
   };
 
   //initialize service
-  ESP_ERROR_CHECK( mdns_service_add( "Bimbrownik HTTP Server", "_remote", "_http", 8000, serviceTxtData, 1 ) );
+  ESP_ERROR_CHECK( mdns_service_add( "Bimbrownik HTTP Server", "_remote", "_http", mg_url_port( HTTP_URL ), serviceTxtData, 1 ) );
   //add mac key string text item
   ESP_ERROR_CHECK( mdns_service_txt_item_set( "_remote", "_http", "mac", gen_mac_str( sta_mac, "\0", temp_str ) ) );
 }

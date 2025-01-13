@@ -20,7 +20,7 @@
 #define MODULE_NAME "[API MQTT] "
 #define DEBUG_LVL   PRINT_INFO
 
-#if CONFIG_DEBUG_TCP_SERVER
+#if CONFIG_DEBUG_HTTP_SERVER
 #define LOG( _lvl, ... ) \
   debug_printf( DEBUG_LVL, _lvl, MODULE_NAME __VA_ARGS__ )
 #else
@@ -45,6 +45,8 @@ static bool set_string_config( mqtt_config_value_t key, const char* str, size_t 
 static const char* get_string_config( mqtt_config_value_t key );
 static bool set_bool_config( mqtt_config_value_t key, const char* str, size_t str_len );
 static const char* get_bool_config( mqtt_config_value_t key );
+static bool set_cert_config( mqtt_config_value_t key, const char* str, size_t str_len );
+static const char* get_cert_config( mqtt_config_value_t key );
 
 /* Private variables ---------------------------------------------------------*/
 
@@ -55,6 +57,7 @@ static token_t mqtt_tokens[] = {
   {.name = "data",    .type = MQTT_CONFIG_VALUE_POST_DATA_TOPIC, .set = set_string_config, .get = get_string_config},
   {.name = "user",    .type = MQTT_CONFIG_VALUE_USERNAME,        .set = set_string_config, .get = get_string_config},
   {.name = "pass",    .type = MQTT_CONFIG_VALUE_PASSWORD,        .set = set_string_config, .get = get_string_config},
+  {.name = "cert",    .type = MQTT_CONFIG_VALUE_CERT,            .set = set_cert_config,   .get = get_cert_config  },
 };
 
 static const char* response;
@@ -67,22 +70,25 @@ static int _handle_save_configuration( struct mg_str* uri, struct mg_str* data, 
   struct mg_str save_uri = mg_str( buffer );
   if ( mg_match( *uri, save_uri, NULL ) )
   {
+    LOG(PRINT_INFO, "Save configuration");
     if ( method != HTTP_SERVER_METHOD_POST )
     {
+      LOG(PRINT_INFO, "Method not allowed %d", method);
       response = "Method not allowed";
       return 405;
     }
     if ( MQTTConfig_Save() )
     {
+      LOG(PRINT_INFO, "Save success");
       response = "OK";
       return 200;
     }
     else
     {
+      LOG( PRINT_ERROR, "%s Fail to save configuration", __func__ );
       response = "Fail to save configuration";
       return 500;
     }
-    LOG( PRINT_ERROR, "%s Fail to save configuration", __func__ );
   }
   return 0;
 }
@@ -94,7 +100,7 @@ static HTTPServerResponse_t _parse_mqtt_cb( struct mg_str* uri, struct mg_str* d
   HTTPServerResponse_t resp = { 0 };
 
   // Handle save configuration
-  if ( _handle_save_configuration( uri, data, method, buffer, sizeof( buffer ) ) )
+  if ( 0 != _handle_save_configuration( uri, data, method, buffer, sizeof( buffer ) ) )
   {
     resp.msg = "OK";
     resp.code = 200;
@@ -128,7 +134,7 @@ static HTTPServerResponse_t _parse_mqtt_cb( struct mg_str* uri, struct mg_str* d
 
         case HTTP_SERVER_METHOD_POST:
           assert( data );
-          if ( mqtt_tokens[i].set( mqtt_tokens[i].type, data->ptr, data->len ) )
+          if ( mqtt_tokens[i].set( mqtt_tokens[i].type, data->buf, data->len ) )
           {
             resp.msg = "OK";
             resp.code = 200;
@@ -147,7 +153,7 @@ static HTTPServerResponse_t _parse_mqtt_cb( struct mg_str* uri, struct mg_str* d
       }
     }
   }
-  LOG( PRINT_INFO, "%s %d Parameter not exist %.*s", __func__, uri->len, uri->len, uri->ptr );
+  LOG( PRINT_INFO, "%s %d Parameter not exist %.*s", __func__, uri->len, uri->len, uri->buf );
   resp.msg = "Parameter not exist";
   resp.code = 400;
   return resp;
@@ -172,12 +178,7 @@ static bool set_string_config( mqtt_config_value_t key, const char* str, size_t 
 
 static const char* get_string_config( mqtt_config_value_t key )
 {
-  static char value[MQTT_CONFIG_STR_SIZE];
-  if ( !MQTTConfig_GetString( key ) )
-  {
-    return '\0';
-  }
-  return value;
+  return MQTTConfig_GetString( key );
 }
 
 static bool set_bool_config( mqtt_config_value_t key, const char* str, size_t str_len )
@@ -199,6 +200,26 @@ static const char* get_bool_config( mqtt_config_value_t key )
     return '\0';
   }
   return value ? "true" : "false";
+}
+
+static bool set_cert_config( mqtt_config_value_t key, const char* str, size_t str_len )
+{
+  if ( str_len >= MQTT_CERT_MAX_SIZE )
+  {
+    response = "Invalid size of certificate";
+    return false;
+  }
+  if ( !MQTTConfig_SetCert( str, str_len, 0, key ) )
+  {
+    response = "Fail set certificate value";
+    return false;
+  }
+  return true;
+}
+
+static const char* get_cert_config( mqtt_config_value_t key )
+{
+  return MQTTConfig_GetCert( key );
 }
 
 /* Public functions -----------------------------------------------------------*/

@@ -69,13 +69,13 @@ static uint8_t default_tls = false;
 
 static value_t config_values[MQTT_CONFIG_VALUE_LAST] =
   {
-    [MQTT_CONFIG_VALUE_ADDRESS] = {.name = "address",  .type = VALUE_TYPE_STRING, .value = (void*) config_data.address,          .default_value = (void*) _default_address      },
-    [MQTT_CONFIG_VALUE_SSL] = { .name = "ssl",     .type = VALUE_TYPE_BOOL,   .value = (void*) &config_data.use_ssl,         .default_value = (void*) &default_tls          },
-    [MQTT_CONFIG_VALUE_TOPIC_PREFIX] = { .name = "prefix",  .type = VALUE_TYPE_STRING, .value = (void*) &config_data.config_topic,    .default_value = &_default_config_topic        },
-    [MQTT_CONFIG_VALUE_POST_DATA_TOPIC] = { .name = "post",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.post_data_topic, .default_value = (void*) _default_post_topic   },
-    [MQTT_CONFIG_VALUE_USERNAME] = { .name = "user",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.username,        .default_value = (void*) ""                    },
-    [MQTT_CONFIG_VALUE_PASSWORD] = { .name = "pass",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.password,        .default_value = (void*) ""                    },
-    [MQTT_CONFIG_VALUE_CERT] = { .name = "cert",    .type = VALUE_TYPE_CERT,   .value = (void*) &config_data.cert,            .default_value = (void*) ""                    },
+    [MQTT_CONFIG_VALUE_ADDRESS] = {.name = "address", .type = VALUE_TYPE_STRING, .value = (void*) config_data.address,          .default_value = (void*) _default_address   },
+    [MQTT_CONFIG_VALUE_SSL] = {.name = "ssl",     .type = VALUE_TYPE_BOOL,   .value = (void*) &config_data.use_ssl,         .default_value = (void*) &default_tls       },
+    [MQTT_CONFIG_VALUE_TOPIC_PREFIX] = {.name = "prefix",  .type = VALUE_TYPE_STRING, .value = (void*) &config_data.config_topic,    .default_value = &_default_config_topic     },
+    [MQTT_CONFIG_VALUE_POST_DATA_TOPIC] = {.name = "post",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.post_data_topic, .default_value = (void*) _default_post_topic},
+    [MQTT_CONFIG_VALUE_USERNAME] = {.name = "user",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.username,        .default_value = (void*) ""                 },
+    [MQTT_CONFIG_VALUE_PASSWORD] = {.name = "pass",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.password,        .default_value = (void*) ""                 },
+    [MQTT_CONFIG_VALUE_CERT] = {.name = "cert",    .type = VALUE_TYPE_CERT,   .value = (void*) &config_data.cert,            .default_value = (void*) ""                 },
 };
 
 static bool _read_data( void )
@@ -97,6 +97,7 @@ static bool _read_data( void )
         err = nvs_get_i32( my_handle, config_values[i].name, config_values[i].value );
         if ( err != ESP_OK )
         {
+          printf( "[MQTT_CONFIG] not found in nvs %s\n\r", config_values[i].name );
           memcpy( config_values[i].value, config_values[i].default_value, sizeof( int32_t ) );
         }
         break;
@@ -105,6 +106,7 @@ static bool _read_data( void )
         err = nvs_get_u8( my_handle, config_values[i].name, config_values[i].value );
         if ( err != ESP_OK )
         {
+          printf( "[MQTT_CONFIG] not found in nvs %s\n\r", config_values[i].name );
           memcpy( config_values[i].value, config_values[i].default_value, sizeof( uint8_t ) );
         }
         break;
@@ -115,6 +117,7 @@ static bool _read_data( void )
           err = nvs_get_str( my_handle, config_values[i].name, config_values[i].value, &length );
           if ( err != ESP_OK )
           {
+            printf( "[MQTT_CONFIG] not found in nvs %s\n\r", config_values[i].name );
             strcpy( config_values[i].value, config_values[i].default_value );
           }
         }
@@ -206,6 +209,7 @@ static bool _save_data( void )
 
 static void _set_default_config( void )
 {
+  printf( "Set default mqtt config\n\r" );
   for ( int i = 0; i < MQTT_CONFIG_VALUE_LAST; i++ )
   {
     switch ( config_values[i].type )
@@ -231,7 +235,7 @@ static void _set_default_config( void )
 
 void MQTTConfig_Init( void )
 {
-  // if ( false == _read_data() )
+  if ( false == _read_data() )
   {
     _set_default_config();
   }
@@ -332,11 +336,12 @@ const char* MQTTConfig_GetCert( mqtt_config_value_t config_value )
 
 bool MQTTConfig_Save( void )
 {
+  bool result = _save_data();
   if ( apply_config_callback != NULL )
   {
     apply_config_callback();
   }
-  return _save_data();
+  return result;
 }
 
 void MQTTConfig_SetCallback( mqtt_apply_config_cb cb )

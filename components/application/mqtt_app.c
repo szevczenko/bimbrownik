@@ -43,7 +43,6 @@ static void _connect( void )
 {
   if ( nc != NULL )
   {
-    mg_mqtt_disconnect( nc, NULL );
     nc->is_closing = 1;
   }
   const char* address = MQTTConfig_GetString( MQTT_CONFIG_VALUE_ADDRESS );
@@ -189,13 +188,13 @@ static void ev_handler( struct mg_connection* nc, int ev, void* ev_data )
       {
         struct mg_mqtt_message* mm = (struct mg_mqtt_message*) ev_data;
         MG_INFO( ( "%lu RECEIVED %.*s <- %.*s", nc->id, (int) mm->data.len,
-                   mm->data.ptr, (int) mm->topic.len, mm->topic.ptr ) );
+                   mm->data.buf, (int) mm->topic.len, mm->topic.buf ) );
 
         char* prefix = (char*) MQTTConfig_GetString( MQTT_CONFIG_VALUE_TOPIC_PREFIX );
-        if ( memcmp( prefix, mm->topic.ptr, strlen( prefix ) ) == 0 )
+        if ( memcmp( prefix, mm->topic.buf, strlen( prefix ) ) == 0 )
         {
           size_t offset = strlen( prefix ) + 1;
-          MQTTJsonParse( &mm->topic.ptr[offset], mm->topic.len - offset, mm->data.ptr, mm->data.len, NULL, 0 );
+          MQTTJsonParse( &mm->topic.buf[offset], mm->topic.len - offset, mm->data.buf, mm->data.len, NULL, 0 );
         }
       }
       break;
