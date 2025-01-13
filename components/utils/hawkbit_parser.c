@@ -32,6 +32,16 @@ const char* hawkbit_deployment_action_array[HAWKBIT_DEPLOYMENT_ACTION_LAST] =
     [HAWKBIT_DEPLOYMENT_ACTION_TIME_FORCED] = "timeforced",
 };
 
+const char* hawkbit_execution_status_array[HAWKBIT_EXECUTION_STATUS_MAX] =
+  {
+    [HAWKBIT_EXECUTION_STATUS_CANCELED] = "canceled",
+    [HAWKBIT_EXECUTION_STATUS_REJECTED] = "rejected",
+    [HAWKBIT_EXECUTION_STATUS_CLOSED] = "closed",
+    [HAWKBIT_EXECUTION_STATUS_PROCEEDING] = "proceeding",
+    [HAWKBIT_EXECUTION_STATUS_SCHEDULED] = "scheduled",
+    [HAWKBIT_EXECUTION_STATUS_RESUMED] = "resumed",
+};
+
 /* Private functions ---------------------------------------------------------*/
 static bool _parse_string( lwjson_token_t* token, const char* strName, char* string, size_t stringSize )
 {
@@ -149,13 +159,15 @@ static size_t _parse_chunks( lwjson_token_t* deploymentTkn, hawkbit_chunk_t* chu
 
 /* Public functions ----------------------------------------------------------*/
 
-bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t urlConfigDataSize, char* urlDeploymentBase, size_t urlDeploymentBaseSize )
+bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t urlConfigDataSize, char* urlDeploymentBase, size_t urlDeploymentBaseSize, char* urlCancelAction, size_t urlCancelActionSize )
 {
   assert( jsonString );
   assert( urlConfigData );
-  assert( urlDeploymentBaseSize );
+  assert( urlDeploymentBase );
+  assert( urlCancelAction );
   assert( urlConfigDataSize );
   assert( urlDeploymentBaseSize );
+  assert( urlCancelActionSize );
 
   if ( strlen( jsonString ) == 0 )
   {
@@ -164,6 +176,7 @@ bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t
 
   memset( urlConfigData, 0, urlConfigDataSize );
   memset( urlDeploymentBase, 0, urlDeploymentBaseSize );
+  memset( urlCancelAction, 0, urlCancelActionSize );
 
   lwjson_token_t tokens[16];
   lwjson_t lwjson;
@@ -193,6 +206,10 @@ bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t
             continue;
           }
           if ( strlen( urlDeploymentBase ) == 0 && _get_url( data, "deploymentBase", urlDeploymentBase, urlDeploymentBaseSize ) )
+          {
+            continue;
+          }
+          if ( strlen( urlCancelAction ) == 0 && _get_url( data, "cancelAction", urlCancelAction, urlCancelActionSize ) )
           {
             continue;
           }
@@ -270,4 +287,55 @@ bool HAWKBITParse_ParseDeployment( const char* jsonString, hawkbit_deployment_t*
     return false;
   }
   return true;
+}
+
+bool HAWKBITParser_ParseCancelAction( const char* jsonString, int* actionId )
+{
+  lwjson_token_t tokens[64];
+  lwjson_t lwjson;
+  lwjson_init( &lwjson, tokens, LWJSON_ARRAYSIZE( tokens ) );
+
+  if ( lwjson_parse_ex( &lwjson, jsonString, strlen( jsonString ) ) == lwjsonOK )
+  {
+    lwjson_token_t* t = lwjson_get_first_token( &lwjson );
+    if ( t->type == LWJSON_TYPE_OBJECT )
+    {
+      lwjson_token_t* cancelActionToken = NULL;
+      lwjson_token_t* stopIdToken = NULL;
+
+      for ( lwjson_token_t* child = (lwjson_token_t*) lwjson_get_first_child( t ); child != NULL; child = child->next )
+      {
+        if ( child->type == LWJSON_TYPE_OBJECT && strncmp( child->token_name, "cancelAction", child->token_name_len ) == 0 )
+        {
+          cancelActionToken = child;
+          break;
+        }
+      }
+
+      if ( cancelActionToken != NULL )
+      {
+        for ( lwjson_token_t* child = (lwjson_token_t*) lwjson_get_first_child( cancelActionToken ); child != NULL; child = child->next )
+        {
+          if ( child->type == LWJSON_TYPE_STRING && strncmp( child->token_name, "stopId", child->token_name_len ) == 0 )
+          {
+            stopIdToken = child;
+            break;
+          }
+        }
+      }
+
+      if ( stopIdToken != NULL )
+      {
+        *actionId = atoi( lwjson_get_val_string( stopIdToken, NULL ) );
+        lwjson_free( &lwjson );
+        return true;
+      }
+    }
+    lwjson_free( &lwjson );
+  }
+  else
+  {
+    lwjson_free( &lwjson );
+  }
+  return false;
 }

@@ -48,11 +48,11 @@ extern const uint8_t server_cert_pem_end[] asm( "_binary_ca_cert_pem_end" );
 
 typedef enum
 {
-  MSG_ID_HAWKBIT_POLL_SERVER,
-  MSG_ID_HAWKBIT_POST_CONFIG_DATA,
-  MSG_ID_HAWKBIT_DOWNLOAD_IMAGE,
-  MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT,
-  MSG_ID_HAWKBIT_STOP_POLL_SERVER,
+  HAWKBIT_POLL_SERVER,
+  HAWKBIT_POST_CONFIG_DATA,
+  HAWKBIT_DOWNLOAD_IMAGE,
+  HAWKBIT_POST_HAWKBIT_RESULT,
+  HAWKBIT_STOP_ACTION_ID,
 } event_t;
 
 typedef enum
@@ -64,7 +64,6 @@ typedef enum
 
 typedef struct
 {
-  module_state_t state;
   QueueHandle_t queue;
   hawkbit_update_result_t hawkbit_update_result;
   char update_result_details[256];
@@ -90,64 +89,18 @@ typedef enum
 /* Private functions declaration ---------------------------------------------*/
 static void _timer_polling( TimerHandle_t xTimer );
 
-static void _init( const event_t* event );
-static void _polling( const event_t* event );
-static void _post_config_data( const event_t* event );
-static void _hawkbit_download_image( const event_t* event );
-static void _post_hawkbit_result( const event_t* event );
-
-static const struct app_events_handler _downloaded_state_handler_array[] =
-  {
-    case MSG_ID_DEINIT_REQ, _polling ),
-};
-
 /* Private variables ---------------------------------------------------------*/
 static char localResponseBuffer[2048];
 static char urlConfigData[HAWKBIT_URL_SIZE];
 static char urlDeploymentBase[HAWKBIT_URL_SIZE];
 static char urlDeploymentBaseFeedback[HAWKBIT_URL_SIZE + 16];
+static char urlCancelAction[HAWKBIT_URL_SIZE];    // Add this line
 static hawkbit_deployment_t hawkbitDeployment;
+static TimerHandle_t polling_timer;
 
 static module_ctx_t ctx;
 
-struct state_context
-{
-  const module_state_t state;
-  const char* name;
-  const struct app_events_handler* event_handler_array;
-  uint8_t event_handler_array_size;
-};
-
-static const struct state_context module_state[STATE_TOP] =
-  {
-#define STATE( _state, _event_handler_array )    \
-  {                                              \
-    .state = _state,                             \
-    .name = #_state,                             \
-    .event_handler_array = _event_handler_array, \
-    .event_handler_array_size = ARRAY_SIZE( _event_handler_array ) },
-    STATE_HANDLER_ARRAY
-#undef STATE
-};
-
-static app_timer_t timers[] =
-  {
-    TIMER_ITEM( TIMER_ID_POLLING, _timer_polling, 300000, "AppTimeoutInit" ),
-};
-
 /* Private functions ---------------------------------------------------------*/
-
-static const char* _get_state_name( const module_state_t state )
-{
-  return module_state[state].name;
-}
-
-static void _change_state( module_state_t new_state )
-{
-  LOG( PRINT_INFO, "State: %s -> %s", _get_state_name( ctx.state ), _get_state_name( new_state ) );
-  ctx.state = new_state;
-}
-
 static void _send_internal_event( event_t id )
 {
   if ( xQueueSend( ctx.queue, (void*) &id, 0 ) != pdPASS )
@@ -193,7 +146,7 @@ bool _find_action_id( const char* str, char* id, size_t id_len )
 
 static void _timer_polling( TimerHandle_t xTimer )
 {
-  _send_internal_event( MSG_ID_HAWKBIT_POLL_SERVER );
+  _send_internal_event( HAWKBIT_POLL_SERVER );
 }
 
 static esp_err_t _http_event_handler( esp_http_client_event_t* evt )
@@ -298,7 +251,7 @@ static void _set_update_error( void )
 {
   LOG( PRINT_ERROR, "%s", ctx.update_result_details );
   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_FAILED;
-  _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
+  _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
 }
 
 esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_method_t method, const char* data, int len, const char* accept )
@@ -351,8 +304,8 @@ static const char* _get_poll_address( void )
   HAWKBITConfig_GetBool( &ctx.use_tls, HAWKBIT_CONFIG_VALUE_TLS );
   HAWKBITConfig_GetString( ctx.address, HAWKBIT_CONFIG_VALUE_ADDRESS, sizeof( ctx.address ) );
   HAWKBITConfig_GetString( ctx.tenant, HAWKBIT_CONFIG_VALUE_TENANT, sizeof( ctx.tenant ) );
-  uint32_t sn = DevConfig_GetSerialNumber();
-  snprintf( ctx.url, sizeof( ctx.url ), "%s%s/%s/controller/v1/%.6ld", ctx.use_tls ? "https://" : "http://",
+  const char* sn = DevConfig_GetSerialNumber();
+  snprintf( ctx.url, sizeof( ctx.url ), "%s%s/%s/controller/v1/%s", ctx.use_tls ? "https://" : "http://",
             ctx.address, ctx.tenant, sn );
   return ctx.url;
 }
@@ -387,13 +340,12 @@ static bool _post_hawkbit_result( const char* result, const char* details )
 
 static void _download_and_update_firmware( const char* url )
 {
-  esp_err_t hawkbit_finish_err = ESP_OK;
   bool result = OTA_Download( url );
   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_FAILED;
   if ( false == result )
   {
     LOG( PRINT_ERROR, "OTA failed to starting download" );
-    _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
+    _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
     return;
   }
 
@@ -405,11 +357,10 @@ static void _download_and_update_firmware( const char* url )
   if ( OTA_GetState() == OTA_DRIVER_STATE_DOWNLOAD_FINISHED )
   {
     ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_SUCCESS;
-    _change_state( DOWNLOADED );
     return;
   }
 
-  _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
+  _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
 }
 
 static void _hawkbit_process( hawkbit_artifacts_t* artifact )
@@ -422,18 +373,62 @@ static void _hawkbit_process( hawkbit_artifacts_t* artifact )
 
 void _hawkbit_apply_callback( void )
 {
-  _send_internal_event( MSG_ID_HAWKBIT_POLL_SERVER );
+  _send_internal_event( HAWKBIT_POLL_SERVER );
 }
 
 /* State machine functions -----------------------------------------------------*/
 
-static void _init( const event_t* event )
+static void _init( void )
 {
   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_SUCCESS;
-  _change_state( IDLE );
 }
 
-static void _polling( const event_t* event )
+static void _handle_cancel_action( void )
+{
+  esp_http_client_handle_t client = _init_http_client( urlCancelAction, HTTP_METHOD_GET, NULL, 0, "application/hal+json" );
+  if ( client == NULL )
+  {
+    LOG( PRINT_ERROR, "Failed to initialize HTTP client for cancel action" );
+    return;
+  }
+
+  esp_err_t err = esp_http_client_perform( client );
+  if ( err == ESP_OK )
+  {
+    LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
+         esp_http_client_get_status_code( client ),
+         esp_http_client_get_content_length( client ) );
+  }
+  else
+  {
+    LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
+    esp_http_client_cleanup( client );
+    return;
+  }
+
+  LOG( PRINT_INFO, "%s", localResponseBuffer );
+
+  int actionId;
+  if ( HAWKBITParser_ParseCancelAction( localResponseBuffer, &actionId ) )
+  {
+    char actionIdStr[32];
+    snprintf( actionIdStr, sizeof( actionIdStr ), "%d", actionId );
+    if ( strcmp( ctx.action_id, actionIdStr ) == 0 )
+    {
+      LOG( PRINT_INFO, "Canceled Action ID: %s", ctx.action_id );
+      ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_FAILED;
+      _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
+    }
+  }
+  else
+  {
+    LOG( PRINT_ERROR, "Failed to parse cancel action response" );
+  }
+
+  esp_http_client_cleanup( client );
+}
+
+static void _polling( void )
 {
   const char* url = _get_poll_address();
 
@@ -444,7 +439,7 @@ static void _polling( const event_t* event )
   }
 
   esp_err_t err = esp_http_client_perform( client );
-  AppTimerStart( timers, TIMER_ID_POLLING );
+  xTimerStart( polling_timer, 0 );
 
   if ( err == ESP_OK )
   {
@@ -460,7 +455,7 @@ static void _polling( const event_t* event )
   }
   LOG( PRINT_INFO, "%s", localResponseBuffer );
 
-  if ( false == HAWKBITParser_ParseUrl( localResponseBuffer, urlConfigData, sizeof( urlConfigData ), urlDeploymentBase, sizeof( urlDeploymentBase ) ) )
+  if ( false == HAWKBITParser_ParseUrl( localResponseBuffer, urlConfigData, sizeof( urlConfigData ), urlDeploymentBase, sizeof( urlDeploymentBase ), urlCancelAction, sizeof( urlCancelAction ) ) )
   {
     esp_http_client_cleanup( client );
     return;
@@ -468,7 +463,7 @@ static void _polling( const event_t* event )
 
   if ( strlen( urlConfigData ) != 0 )
   {
-    _send_internal_event( MSG_ID_HAWKBIT_POST_CONFIG_DATA );
+    _send_internal_event( HAWKBIT_POST_CONFIG_DATA );
   }
 
   if ( strlen( urlDeploymentBase ) != 0 )
@@ -477,18 +472,24 @@ static void _polling( const event_t* event )
 
     if ( ctx.hawkbit_update_result != HAWKBIT_UPDATE_RESULT_NONE )
     {
-      _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
+      _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
     }
     else
     {
-      _send_internal_event( MSG_ID_HAWKBIT_DOWNLOAD_IMAGE );
+      _send_internal_event( HAWKBIT_DOWNLOAD_IMAGE );
     }
+  }
+
+  if ( strlen( urlCancelAction ) != 0 )
+  {
+    LOG( PRINT_INFO, "Cancel action URL found: %s", urlCancelAction );
+    _send_internal_event( HAWKBIT_STOP_ACTION_ID );
   }
 
   esp_http_client_cleanup( client );
 }
 
-static void _post_config_data( const event_t* event )
+static void _post_config_data( void )
 {
   LOG( PRINT_INFO, "post_config_data: %s", urlConfigData );
   const char* post_data = "{\"mode\":\"merge\",\"data\":{\"VIN\":\"JH4TB2H26CC000001\", \
@@ -514,7 +515,7 @@ static void _post_config_data( const event_t* event )
   esp_http_client_cleanup( client );
 }
 
-static void _hawkbit_download_image( const event_t* event )
+static void _hawkbit_download_image( void )
 {
   LOG( PRINT_INFO, "_hawkbit_process: %s", urlDeploymentBase );
   memset( &hawkbitDeployment, 0, sizeof( hawkbitDeployment ) );
@@ -543,7 +544,7 @@ static void _hawkbit_download_image( const event_t* event )
 
   HAWKBITParse_ParseDeployment( localResponseBuffer, &hawkbitDeployment );
 
-  AppTimerStop( timers, TIMER_ID_POLLING );
+  xTimerStop( polling_timer, 0 );
   if ( hawkbitDeployment.chunkSize != 0 )
   {
     for ( int chunk = 0; chunk < hawkbitDeployment.chunkSize; chunk++ )
@@ -554,10 +555,10 @@ static void _hawkbit_download_image( const event_t* event )
       }
     }
   }
-  AppTimerStart( timers, TIMER_ID_POLLING );
+  xTimerStart( polling_timer, 0 );
 }
 
-static void _post_hawkbit_result( const event_t* event )
+static void _event_post_hawkbit_result( void )
 {
   bool post_result = false;
   switch ( ctx.hawkbit_update_result )
@@ -591,16 +592,20 @@ static void _task( void* pvParameter )
     {
       switch ( event )
       {
-        case MSG_ID_HAWKBIT_POLL_SERVER:
+        case HAWKBIT_POLL_SERVER:
           _polling();
           break;
-        case MSG_ID_HAWKBIT_POST_CONFIG_DATA:
-          _post_config_data() break;
-        case MSG_ID_HAWKBIT_DOWNLOAD_IMAGE:
+        case HAWKBIT_POST_CONFIG_DATA:
+          _post_config_data();
+          break;
+        case HAWKBIT_DOWNLOAD_IMAGE:
           _hawkbit_download_image();
           break;
-        case MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT:
-          _post_hawkbit_result();
+        case HAWKBIT_POST_HAWKBIT_RESULT:
+          _event_post_hawkbit_result();
+          break;
+        case HAWKBIT_STOP_ACTION_ID:
+          _handle_cancel_action();
           break;
         default:
           assert( 0 );
@@ -616,6 +621,9 @@ void HawkbitProcess_Init( void )
   OTA_Init();
   ctx.queue = xQueueCreate( 8, sizeof( event_t ) );
   assert( ctx.queue );
-  AppTimersInit( timers, TIMER_ID_LAST );
+
+  polling_timer = xTimerCreate( "PollingTimer", pdMS_TO_TICKS( 300000 ), pdTRUE, NULL, _timer_polling );
+  assert( polling_timer );
+
   xTaskCreate( &_task, "_hawkbit_task", 1024 * 6, NULL, 5, NULL );
 }

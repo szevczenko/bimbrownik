@@ -32,6 +32,17 @@ typedef enum
   HAWKBIT_DEPLOYMENT_ACTION_LAST
 } hawkbit_deployment_action_t;
 
+typedef enum
+{
+  HAWKBIT_EXECUTION_STATUS_CANCELED,
+  HAWKBIT_EXECUTION_STATUS_REJECTED,
+  HAWKBIT_EXECUTION_STATUS_CLOSED,
+  HAWKBIT_EXECUTION_STATUS_PROCEEDING,
+  HAWKBIT_EXECUTION_STATUS_SCHEDULED,
+  HAWKBIT_EXECUTION_STATUS_RESUMED,
+  HAWKBIT_EXECUTION_STATUS_MAX
+} hawkbit_execution_status_t;
+
 typedef struct
 {
   char filename[32];
@@ -67,9 +78,11 @@ typedef struct
  * @param   [in] urlConfigDataSize - size of @c urlConfigData buffer.
  * @param   [out] urlDeploymentBase - url deployment base for get url artifacts.
  * @param   [in] urlDeploymentBaseSize - size of @c urlDeploymentBaseSize buffer.
+ * @param   [out] urlCancelAction - url cancel action for getting cancel action information.
+ * @param   [in] urlCancelActionSize - size of @c urlCancelAction buffer.
  * @return  true if success
  */
-bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t urlConfigDataSize, char* urlDeploymentBase, size_t urlDeploymentBaseSize );
+bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t urlConfigDataSize, char* urlDeploymentBase, size_t urlDeploymentBaseSize, char* urlCancelAction, size_t urlCancelActionSize );
 
 /**
  * @brief   Parse deployments response json
@@ -78,4 +91,12 @@ bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t
  * @return  true if success
  */
 bool HAWKBITParse_ParseDeployment( const char* jsonString, hawkbit_deployment_t* deployment );
+
+/**
+ * @brief   Parse cancel action response json
+ * @param   [in] jsonString - json response from hawkBit server.
+ * @param   [out] actionId - action id to cancel.
+ * @return  true if success
+ */
+bool HAWKBITParser_ParseCancelAction( const char* jsonString, int* actionId );
 #endif
