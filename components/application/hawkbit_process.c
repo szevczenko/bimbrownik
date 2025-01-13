@@ -16,8 +16,6 @@
 #include <sys/param.h>
 
 #include "app_config.h"
-#include "app_events.h"
-#include "app_timers.h"
 #include "dev_config.h"
 #include "esp_crt_bundle.h"
 #include "esp_efuse.h"
@@ -46,21 +44,16 @@
 extern const uint8_t server_cert_pem_start[] asm( "_binary_ca_cert_pem_start" );
 extern const uint8_t server_cert_pem_end[] asm( "_binary_ca_cert_pem_end" );
 
-/* Private types -------------------------------------------------------------*/
-
-/** @brief  Array with defined states */
-#define STATE_HANDLER_ARRAY                        \
-  STATE( DISABLED, _disabled_state_handler_array ) \
-  STATE( IDLE, _idle_state_handler_array )         \
-  STATE( DOWNLOADED, _downloaded_state_handler_array )
+/* Public types ----------------------------------------------------------*/
 
 typedef enum
 {
-#define STATE( _state, _event_handler_array ) _state,
-  STATE_HANDLER_ARRAY
-#undef STATE
-    STATE_TOP,
-} module_state_t;
+  MSG_ID_HAWKBIT_POLL_SERVER,
+  MSG_ID_HAWKBIT_POST_CONFIG_DATA,
+  MSG_ID_HAWKBIT_DOWNLOAD_IMAGE,
+  MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT,
+  MSG_ID_HAWKBIT_STOP_POLL_SERVER,
+} event_t;
 
 typedef enum
 {
@@ -97,30 +90,15 @@ typedef enum
 /* Private functions declaration ---------------------------------------------*/
 static void _timer_polling( TimerHandle_t xTimer );
 
-static void _state_disabled_init( const app_event_t* event );
-
-static void _state_idle_event_polling( const app_event_t* event );
-static void _state_idle_event_post_config_data( const app_event_t* event );
-static void _state_idle_event_hawkbit_download_image( const app_event_t* event );
-static void _state_idle_event_post_hawkbit_result( const app_event_t* event );
-
-/* Status callbacks declaration. ---------------------------------------------*/
-static const struct app_events_handler _disabled_state_handler_array[] =
-  {
-    EVENT_ITEM( MSG_ID_INIT_REQ, _state_disabled_init ),
-};
-
-static const struct app_events_handler _idle_state_handler_array[] =
-  {
-    EVENT_ITEM( MSG_ID_HAWKBIT_POLL_SERVER, _state_idle_event_polling ),
-    EVENT_ITEM( MSG_ID_HAWKBIT_POST_CONFIG_DATA, _state_idle_event_post_config_data ),
-    EVENT_ITEM( MSG_ID_HAWKBIT_DOWNLOAD_IMAGE, _state_idle_event_hawkbit_download_image ),
-    EVENT_ITEM( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT, _state_idle_event_post_hawkbit_result ),
-};
+static void _init( const event_t* event );
+static void _polling( const event_t* event );
+static void _post_config_data( const event_t* event );
+static void _hawkbit_download_image( const event_t* event );
+static void _post_hawkbit_result( const event_t* event );
 
 static const struct app_events_handler _downloaded_state_handler_array[] =
   {
-    EVENT_ITEM( MSG_ID_DEINIT_REQ, _state_idle_event_polling ),
+    case MSG_ID_DEINIT_REQ, _polling ),
 };
 
 /* Private variables ---------------------------------------------------------*/
@@ -170,19 +148,12 @@ static void _change_state( module_state_t new_state )
   ctx.state = new_state;
 }
 
-static void _send_internal_event( app_msg_id_t id, const void* data, uint32_t data_size )
+static void _send_internal_event( event_t id )
 {
-  app_event_t event = {};
-  if ( data_size == 0 )
+  if ( xQueueSend( ctx.queue, (void*) &id, 0 ) != pdPASS )
   {
-    AppEventPrepareNoData( &event, id, APP_EVENT_HAWKBIT, APP_EVENT_HAWKBIT );
+    assert( 0 );
   }
-  else
-  {
-    AppEventPrepareWithData( &event, id, APP_EVENT_HAWKBIT, APP_EVENT_HAWKBIT, data, data_size );
-  }
-
-  HawkbitProcess_PostMsg( &event );
 }
 
 static esp_err_t _bundle_attach( void* conf )
@@ -222,7 +193,7 @@ bool _find_action_id( const char* str, char* id, size_t id_len )
 
 static void _timer_polling( TimerHandle_t xTimer )
 {
-  _send_internal_event( MSG_ID_HAWKBIT_POLL_SERVER, NULL, 0 );
+  _send_internal_event( MSG_ID_HAWKBIT_POLL_SERVER );
 }
 
 static esp_err_t _http_event_handler( esp_http_client_event_t* evt )
@@ -327,7 +298,7 @@ static void _set_update_error( void )
 {
   LOG( PRINT_ERROR, "%s", ctx.update_result_details );
   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_FAILED;
-  _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT, NULL, 0 );
+  _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
 }
 
 esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_method_t method, const char* data, int len, const char* accept )
@@ -422,7 +393,7 @@ static void _download_and_update_firmware( const char* url )
   if ( false == result )
   {
     LOG( PRINT_ERROR, "OTA failed to starting download" );
-    _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT, NULL, 0 );
+    _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
     return;
   }
 
@@ -438,7 +409,7 @@ static void _download_and_update_firmware( const char* url )
     return;
   }
 
-  _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT, NULL, 0 );
+  _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
 }
 
 static void _hawkbit_process( hawkbit_artifacts_t* artifact )
@@ -451,18 +422,18 @@ static void _hawkbit_process( hawkbit_artifacts_t* artifact )
 
 void _hawkbit_apply_callback( void )
 {
-  _send_internal_event( MSG_ID_HAWKBIT_POLL_SERVER, NULL, 0 );
+  _send_internal_event( MSG_ID_HAWKBIT_POLL_SERVER );
 }
 
 /* State machine functions -----------------------------------------------------*/
 
-static void _state_disabled_init( const app_event_t* event )
+static void _init( const event_t* event )
 {
   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_SUCCESS;
   _change_state( IDLE );
 }
 
-static void _state_idle_event_polling( const app_event_t* event )
+static void _polling( const event_t* event )
 {
   const char* url = _get_poll_address();
 
@@ -497,7 +468,7 @@ static void _state_idle_event_polling( const app_event_t* event )
 
   if ( strlen( urlConfigData ) != 0 )
   {
-    _send_internal_event( MSG_ID_HAWKBIT_POST_CONFIG_DATA, NULL, 0 );
+    _send_internal_event( MSG_ID_HAWKBIT_POST_CONFIG_DATA );
   }
 
   if ( strlen( urlDeploymentBase ) != 0 )
@@ -506,18 +477,18 @@ static void _state_idle_event_polling( const app_event_t* event )
 
     if ( ctx.hawkbit_update_result != HAWKBIT_UPDATE_RESULT_NONE )
     {
-      _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT, NULL, 0 );
+      _send_internal_event( MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT );
     }
     else
     {
-      _send_internal_event( MSG_ID_HAWKBIT_DOWNLOAD_IMAGE, NULL, 0 );
+      _send_internal_event( MSG_ID_HAWKBIT_DOWNLOAD_IMAGE );
     }
   }
 
   esp_http_client_cleanup( client );
 }
 
-static void _state_idle_event_post_config_data( const app_event_t* event )
+static void _post_config_data( const event_t* event )
 {
   LOG( PRINT_INFO, "post_config_data: %s", urlConfigData );
   const char* post_data = "{\"mode\":\"merge\",\"data\":{\"VIN\":\"JH4TB2H26CC000001\", \
@@ -543,7 +514,7 @@ static void _state_idle_event_post_config_data( const app_event_t* event )
   esp_http_client_cleanup( client );
 }
 
-static void _state_idle_event_hawkbit_download_image( const app_event_t* event )
+static void _hawkbit_download_image( const event_t* event )
 {
   LOG( PRINT_INFO, "_hawkbit_process: %s", urlDeploymentBase );
   memset( &hawkbitDeployment, 0, sizeof( hawkbitDeployment ) );
@@ -586,7 +557,7 @@ static void _state_idle_event_hawkbit_download_image( const app_event_t* event )
   AppTimerStart( timers, TIMER_ID_POLLING );
 }
 
-static void _state_idle_event_post_hawkbit_result( const app_event_t* event )
+static void _post_hawkbit_result( const event_t* event )
 {
   bool post_result = false;
   switch ( ctx.hawkbit_update_result )
@@ -612,26 +583,29 @@ static void _state_idle_event_post_hawkbit_result( const app_event_t* event )
 static void _task( void* pvParameter )
 {
   LOG( PRINT_INFO, "Starting HAWKBIT task" );
-  _send_internal_event( MSG_ID_INIT_REQ, NULL, 0 );
+  _init();
   while ( 1 )
   {
-    app_event_t event = { 0 };
+    event_t event = { 0 };
     if ( xQueueReceive( ctx.queue, &( event ), portMAX_DELAY ) == pdPASS )
     {
-      if ( false == AppEventSearchAndExecute( &event, module_state[ctx.state].event_handler_array, module_state[ctx.state].event_handler_array_size ) )
+      switch ( event )
       {
-        LOG( PRINT_INFO, "State: %s %d", _get_state_name( ctx.state ), module_state[ctx.state].event_handler_array_size );
+        case MSG_ID_HAWKBIT_POLL_SERVER:
+          _polling();
+          break;
+        case MSG_ID_HAWKBIT_POST_CONFIG_DATA:
+          _post_config_data() break;
+        case MSG_ID_HAWKBIT_DOWNLOAD_IMAGE:
+          _hawkbit_download_image();
+          break;
+        case MSG_ID_HAWKBIT_POST_HAWKBIT_RESULT:
+          _post_hawkbit_result();
+          break;
+        default:
+          assert( 0 );
       }
-      AppEventDelete( &event );
     }
-  }
-}
-
-void HawkbitProcess_PostMsg( app_event_t* event )
-{
-  if ( xQueueSend( ctx.queue, (void*) event, 0 ) != pdPASS )
-  {
-    assert( 0 );
   }
 }
 
@@ -640,7 +614,7 @@ void HawkbitProcess_Init( void )
   HAWKBITConfig_Init();
   HAWKBITConfig_SetCallback( _hawkbit_apply_callback );
   OTA_Init();
-  ctx.queue = xQueueCreate( 8, sizeof( app_event_t ) );
+  ctx.queue = xQueueCreate( 8, sizeof( event_t ) );
   assert( ctx.queue );
   AppTimersInit( timers, TIMER_ID_LAST );
   xTaskCreate( &_task, "_hawkbit_task", 1024 * 6, NULL, 5, NULL );

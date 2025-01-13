@@ -36,12 +36,6 @@
   MSG( TCP_SERVER_ETHERNET_DISCONNECTED )         \
   MSG( TCP_SERVER_SEND_DATA )                     \
                                                   \
-  /* HAWKBIT */                                   \
-  MSG( HAWKBIT_POLL_SERVER )                      \
-  MSG( HAWKBIT_POST_CONFIG_DATA )                 \
-  MSG( HAWKBIT_DOWNLOAD_IMAGE )                   \
-  MSG( HAWKBIT_POST_HAWKBIT_RESULT )                  \
-  MSG( HAWKBIT_STOP_POLL_SERVER )                 \
                                                   \
   /* MQTT */                                      \
   MSG( MQTT_APP_CONNECT )                         \
