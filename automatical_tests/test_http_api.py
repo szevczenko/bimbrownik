@@ -20,7 +20,7 @@ class TestClassHttpApi:
                     break
             assert len(self.devices) > 0
             self.target = device.Device(self.devices[0][0], self.devices[0][1])
-    
+
     def _restart(self):
         LOGGER.info("Restarting the device")
         status, value = self.target.restart_device()
@@ -36,7 +36,7 @@ class TestClassHttpApi:
         tls = "true"
         poll_time = random.randint(0, 100)
         token = f"1234567890{random.randint(0,100)}"
-        
+
         # Set configurations
         status, value = self.target.set_hawkbit_config("address", address)
         assert status == 200 and value == "OK"
@@ -86,7 +86,9 @@ class TestClassHttpApi:
         data = f"test/data{random.randint(0,100)}"
         user = f"testuser{random.randint(0,100)}"
         password = f"testpass{random.randint(0,100)}"
-        cert = "-----BEGIN CERTIFICATE-----\n" + "M" * 5000 + "\n-----END CERTIFICATE-----"
+        cert = (
+            "-----BEGIN CERTIFICATE-----\n" + "M" * 5000 + "\n-----END CERTIFICATE-----"
+        )
 
         # Set configurations
         status, value = self.target.set_mqtt_config("address", address)
@@ -153,3 +155,30 @@ class TestClassHttpApi:
         self._scan()
         status, value = self.target.http_api_get("unknown", "unknown")
         assert status == 400 and value == "Unknown API"
+
+    def test_serial_number_api(self):
+        self._scan()
+        serial_number = f"SN{random.randint(1000, 9999)}"
+        magic_word = "SUPER_GRASS"
+
+        # Check if serial number is already set
+        status, value = self.target.get_serial_number_config()
+        if status == 200 and value:
+            print(f"Serial number already set: {value}")
+        else:
+            # Set serial number without magic word
+            status, value = self.target.set_serial_number_config(serial_number)
+            assert status == 200 and value == "OK"
+
+        # Try to set serial number again without magic word
+        status, value = self.target.set_serial_number_config(serial_number)
+        assert status == 400 and value == "Serial number already set"
+
+        # Set serial number with magic word
+        status, value = self.target.set_serial_number_config(serial_number, magic_word)
+        assert status == 200 and value == "OK"
+
+        # Get serial number
+        status, value = self.target.get_serial_number_config()
+        assert status == 200
+        assert value == serial_number

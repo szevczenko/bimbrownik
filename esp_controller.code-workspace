@@ -169,7 +169,8 @@
             "charconv": "c",
             "http_server.h": "c",
             "optional": "c",
-            "mdns.h": "c"
+            "mdns.h": "c",
+            "unity.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

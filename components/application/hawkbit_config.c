@@ -48,6 +48,7 @@ typedef struct
 } config_data_t;
 
 static hawkbit_apply_config_cb apply_config_callback = NULL;
+static bool data_read = false;
 
 /* Private variables ---------------------------------------------------------*/
 static config_data_t config_data;
@@ -60,11 +61,11 @@ static int default_poll_time = 300;
 
 static value_t config_values[HAWKBIT_CONFIG_VALUE_LAST] =
   {
-    [HAWKBIT_CONFIG_VALUE_ADDRESS] = {.name = "address",    .type = VALUE_TYPE_STRING, .value = (void*) config_data.address,       .default_value = (void*) _default_address},
-    [HAWKBIT_CONFIG_VALUE_TLS] = { .name = "tls",       .type = VALUE_TYPE_BOOL,   .value = (void*) &config_data.use_tls,      .default_value = (void*) &default_tls    },
-    [HAWKBIT_CONFIG_VALUE_TENANT] = { .name = "tenant",    .type = VALUE_TYPE_STRING, .value = (void*) config_data.tenant,        .default_value = (void*) _default_tenant },
-    [HAWKBIT_CONFIG_VALUE_POLLING_TIME] = { .name = "poll_time", .type = VALUE_TYPE_INT,    .value = (void*) &config_data.polling_time, .default_value = &default_poll_time      },
-    [HAWKBIT_CONFIG_VALUE_TOKEN] = { .name = "token",     .type = VALUE_TYPE_STRING, .value = (void*) &config_data.token,        .default_value = (void*) _default_token  },
+    [HAWKBIT_CONFIG_VALUE_ADDRESS] = {.name = "address",   .type = VALUE_TYPE_STRING, .value = (void*) config_data.address,       .default_value = (void*) _default_address},
+    [HAWKBIT_CONFIG_VALUE_TLS] = {.name = "tls",       .type = VALUE_TYPE_BOOL,   .value = (void*) &config_data.use_tls,      .default_value = (void*) &default_tls    },
+    [HAWKBIT_CONFIG_VALUE_TENANT] = {.name = "tenant",    .type = VALUE_TYPE_STRING, .value = (void*) config_data.tenant,        .default_value = (void*) _default_tenant },
+    [HAWKBIT_CONFIG_VALUE_POLLING_TIME] = {.name = "poll_time", .type = VALUE_TYPE_INT,    .value = (void*) &config_data.polling_time, .default_value = &default_poll_time      },
+    [HAWKBIT_CONFIG_VALUE_TOKEN] = {.name = "token",     .type = VALUE_TYPE_STRING, .value = (void*) &config_data.token,        .default_value = (void*) _default_token  },
 };
 
 static bool _read_data( void )
@@ -185,9 +186,13 @@ static void _set_default_config( void )
 
 void HAWKBITConfig_Init( void )
 {
-  if ( false == _read_data() )
+  if ( !data_read )
   {
-    _set_default_config();
+    if ( false == _read_data() )
+    {
+      _set_default_config();
+    }
+    data_read = true;
   }
 }
 

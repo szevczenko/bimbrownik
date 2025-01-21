@@ -10,7 +10,7 @@
 #include "hawkbit_parser.h"
 
 #include "app_config.h"
-#include "lwjson.h"
+#include "mongoose.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[HAWKBIT_P] "
@@ -43,41 +43,6 @@ const char* hawkbit_execution_status_array[HAWKBIT_EXECUTION_STATUS_MAX] =
 };
 
 /* Private functions ---------------------------------------------------------*/
-static bool _parse_string( lwjson_token_t* token, const char* strName, char* string, size_t stringSize )
-{
-  const char* readStr = NULL;
-  size_t readStrSize = 0;
-  if ( token->type == LWJSON_TYPE_STRING && 0 == strncmp( strName, token->token_name, token->token_name_len ) )
-  {
-    readStr = lwjson_get_val_string( token, &readStrSize );
-    if ( readStr == NULL )
-    {
-      LOG( PRINT_ERROR, "Cannot found string %s", strName );
-      return false;
-    }
-
-    if ( readStrSize > stringSize )
-    {
-      LOG( PRINT_ERROR, "Buffer to small for copy url" );
-      return false;
-    }
-
-    memset( string, 0, stringSize );
-    memcpy( string, readStr, readStrSize );
-    return true;
-  }
-  return false;
-}
-
-static bool _get_url( lwjson_token_t* token, const char* urlName, char* url, size_t urlLen )
-{
-  if ( token->type == LWJSON_TYPE_OBJECT && 0 == strncmp( urlName, token->token_name, token->token_name_len ) )
-  {
-    lwjson_token_t* href = (lwjson_token_t*) lwjson_get_first_child( token );
-    return _parse_string( href, "href", url, urlLen );
-  }
-  return false;
-}
 
 static hawkbit_deployment_action_t _get_action_type( const char* action )
 {
@@ -89,72 +54,6 @@ static hawkbit_deployment_action_t _get_action_type( const char* action )
     }
   }
   return HAWKBIT_DEPLOYMENT_ACTION_UNKNOWN;
-}
-
-static size_t _parse_artifact( lwjson_token_t* chunk_obj_tkn, hawkbit_artifacts_t* artifactArray )
-{
-  size_t art_index = 0;
-  for ( lwjson_token_t* art_tkn = (lwjson_token_t*) lwjson_get_first_child( chunk_obj_tkn ); art_tkn != NULL; art_tkn = art_tkn->next )
-  {
-    for ( lwjson_token_t* art_obj_tkn = (lwjson_token_t*) lwjson_get_first_child( art_tkn ); art_obj_tkn != NULL; art_obj_tkn = art_obj_tkn->next )
-    {
-      if ( _parse_string( art_obj_tkn, "filename", artifactArray[art_index].filename, sizeof( artifactArray[art_index].filename ) ) )
-      {
-        LOG( PRINT_DEBUG, "filename: %s", artifactArray[art_index].filename );
-      }
-      else if ( art_obj_tkn->type == LWJSON_TYPE_NUM_INT && 0 == strncmp( "size", art_obj_tkn->token_name, art_obj_tkn->token_name_len ) )
-      {
-        artifactArray[art_index].size = lwjson_get_val_int( art_obj_tkn );
-        LOG( PRINT_DEBUG, "size: %d", artifactArray[art_index].size );
-      }
-      else if ( art_obj_tkn->type == LWJSON_TYPE_OBJECT && 0 == strncmp( "_links", art_obj_tkn->token_name, art_obj_tkn->token_name_len ) )
-      {
-        for ( lwjson_token_t* url = (lwjson_token_t*) lwjson_get_first_child( art_obj_tkn ); url != NULL; url = url->next )
-        {
-          _get_url( url, "download-http", artifactArray[art_index].download_http, sizeof( artifactArray[art_index].download_http ) );
-        }
-      }
-    }
-    art_index++;
-    if ( art_index == HAWKBIT_MAX_ARTIFACTS )
-    {
-      break;
-    }
-  }
-  return art_index;
-}
-
-static size_t _parse_chunks( lwjson_token_t* deploymentTkn, hawkbit_chunk_t* chunkArray )
-{
-  uint8_t index = 0;
-  for ( lwjson_token_t* chunk_tkn = (lwjson_token_t*) lwjson_get_first_child( deploymentTkn ); chunk_tkn != NULL; chunk_tkn = chunk_tkn->next )
-  {
-    for ( lwjson_token_t* chunk_obj_tkn = (lwjson_token_t*) lwjson_get_first_child( chunk_tkn ); chunk_obj_tkn != NULL; chunk_obj_tkn = chunk_obj_tkn->next )
-    {
-      if ( _parse_string( chunk_obj_tkn, "part", chunkArray[index].part, sizeof( chunkArray[index].part ) ) )
-      {
-        LOG( PRINT_DEBUG, "part: %s", chunkArray[index].part );
-      }
-      else if ( _parse_string( chunk_obj_tkn, "version", chunkArray[index].version, sizeof( chunkArray[index].version ) ) )
-      {
-        LOG( PRINT_DEBUG, "version: %s", chunkArray[index].version );
-      }
-      else if ( _parse_string( chunk_obj_tkn, "name", chunkArray[index].name, sizeof( chunkArray[index].name ) ) )
-      {
-        LOG( PRINT_DEBUG, "name: %s", chunkArray[index].name );
-      }
-      else if ( chunk_obj_tkn->type == LWJSON_TYPE_ARRAY && 0 == strncmp( "artifacts", chunk_obj_tkn->token_name, chunk_obj_tkn->token_name_len ) )
-      {
-        chunkArray[index].artifactsSize = _parse_artifact( chunk_obj_tkn, chunkArray[index].artifacts );
-      }
-    }
-    index++;
-    if ( index == HAWKBIT_MAX_CHUNKS )
-    {
-      break;
-    }
-  }
-  return index;
 }
 
 /* Public functions ----------------------------------------------------------*/
@@ -178,50 +77,34 @@ bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t
   memset( urlDeploymentBase, 0, urlDeploymentBaseSize );
   memset( urlCancelAction, 0, urlCancelActionSize );
 
-  lwjson_token_t tokens[16];
-  lwjson_t lwjson;
-  lwjson_init( &lwjson, tokens, LWJSON_ARRAYSIZE( tokens ) );
+  struct mg_str json = mg_str( jsonString );
+  int len;
+  int offset = mg_json_get( json, "$._links", &len );
 
-  if ( lwjson_parse_ex( &lwjson, jsonString, strlen( jsonString ) ) == lwjsonOK )
+  if ( offset < 0 )
   {
-    lwjson_token_t* t;
-
-    /* Get very first token as top object */
-    t = lwjson_get_first_token( &lwjson );
-    if ( t->type != LWJSON_TYPE_OBJECT )
-    {
-      LOG( PRINT_ERROR, "Invalid json" );
-      lwjson_free( &lwjson );
-      return false;
-    }
-
-    for ( lwjson_token_t* tkn = (lwjson_token_t*) lwjson_get_first_child( t ); tkn != NULL; tkn = tkn->next )
-    {
-      if ( tkn->type == LWJSON_TYPE_OBJECT && 0 == strncmp( "_links", tkn->token_name, tkn->token_name_len ) )
-      {
-        for ( lwjson_token_t* data = (lwjson_token_t*) lwjson_get_first_child( tkn ); data != NULL; data = data->next )
-        {
-          if ( strlen( urlConfigData ) == 0 && _get_url( data, "configData", urlConfigData, urlConfigDataSize ) )
-          {
-            continue;
-          }
-          if ( strlen( urlDeploymentBase ) == 0 && _get_url( data, "deploymentBase", urlDeploymentBase, urlDeploymentBaseSize ) )
-          {
-            continue;
-          }
-          if ( strlen( urlCancelAction ) == 0 && _get_url( data, "cancelAction", urlCancelAction, urlCancelActionSize ) )
-          {
-            continue;
-          }
-        }
-      }
-    }
-    lwjson_free( &lwjson );
-  }
-  else
-  {
-    lwjson_free( &lwjson );
+    LOG( PRINT_ERROR, "Invalid JSON: missing _links" );
     return false;
+  }
+
+  struct mg_str links = mg_str_n( json.buf + offset, len );
+
+  offset = mg_json_get( links, "$.configData.href", &len );
+  if ( offset >= 0 )
+  {
+    snprintf( urlConfigData, urlConfigDataSize, "%.*s", len, links.buf + offset );
+  }
+
+  offset = mg_json_get( links, "$.deploymentBase.href", &len );
+  if ( offset >= 0 )
+  {
+    snprintf( urlDeploymentBase, urlDeploymentBaseSize, "%.*s", len, links.buf + offset );
+  }
+
+  offset = mg_json_get( links, "$.cancelAction.href", &len );
+  if ( offset >= 0 )
+  {
+    snprintf( urlCancelAction, urlCancelActionSize, "%.*s", len, links.buf + offset );
   }
 
   return true;
@@ -232,110 +115,96 @@ bool HAWKBITParse_ParseDeployment( const char* jsonString, hawkbit_deployment_t*
   assert( jsonString );
   assert( deployment );
 
-  lwjson_token_t tokens[64];
-  lwjson_t lwjson;
-  lwjson_init( &lwjson, tokens, LWJSON_ARRAYSIZE( tokens ) );
+  struct mg_str json = mg_str( jsonString );
+  int len;
+  int offset = mg_json_get( json, "$.deployment", &len );
 
-  if ( lwjson_parse_ex( &lwjson, jsonString, strlen( jsonString ) ) == lwjsonOK )
+  if ( offset < 0 )
   {
-    lwjson_token_t* t;
-
-    /* Get first token as top object */
-    t = lwjson_get_first_token( &lwjson );
-    if ( t->type != LWJSON_TYPE_OBJECT )
-    {
-      LOG( PRINT_ERROR, "Invalid json" );
-      lwjson_free( &lwjson );
-      return false;
-    }
-    /* Main object */
-    for ( lwjson_token_t* tkn = (lwjson_token_t*) lwjson_get_first_child( t ); tkn != NULL; tkn = tkn->next )
-    {
-      if ( tkn->type == LWJSON_TYPE_OBJECT && 0 == strncmp( "deployment", tkn->token_name, tkn->token_name_len ) )
-      {
-        /* Deployment */
-        for ( lwjson_token_t* deploymentTkn = (lwjson_token_t*) lwjson_get_first_child( tkn ); deploymentTkn != NULL; deploymentTkn = deploymentTkn->next )
-        {
-          if ( deploymentTkn->type == LWJSON_TYPE_STRING )
-          {
-            char string[32] = {};
-            if ( _parse_string( deploymentTkn, "update", string, sizeof( string ) ) )
-            {
-              LOG( PRINT_DEBUG, "update: %s", string );
-              deployment->update = _get_action_type( string );
-              continue;
-            }
-            else if ( _parse_string( deploymentTkn, "download", string, sizeof( string ) ) )
-            {
-              LOG( PRINT_DEBUG, "download: %s", string );
-              deployment->download = _get_action_type( string );
-              continue;
-            }
-          }
-          else if ( deploymentTkn->type == LWJSON_TYPE_ARRAY && 0 == strncmp( "chunks", deploymentTkn->token_name, deploymentTkn->token_name_len ) )
-          {
-            deployment->chunkSize = _parse_chunks( deploymentTkn, deployment->chunk );
-          }
-        }
-      }
-    }
-    lwjson_free( &lwjson );
-  }
-  else
-  {
-    lwjson_free( &lwjson );
+    LOG( PRINT_ERROR, "Invalid JSON: missing deployment" );
     return false;
   }
+
+  struct mg_str deploymentObj = mg_str_n( json.buf + offset, len );
+
+  offset = mg_json_get( deploymentObj, "$.update", &len );
+  if ( offset >= 0 )
+  {
+    deployment->update = _get_action_type( mg_str_n( deploymentObj.buf + offset, len ).buf );
+  }
+
+  offset = mg_json_get( deploymentObj, "$.download", &len );
+  if ( offset >= 0 )
+  {
+    deployment->download = _get_action_type( mg_str_n( deploymentObj.buf + offset, len ).buf );
+  }
+
+  deployment->chunkSize = 0;
+  size_t chunkOffset = 0;
+  while ( ( offset = mg_json_get( deploymentObj, "$.chunks", &len ) ) >= 0 && deployment->chunkSize < HAWKBIT_MAX_CHUNKS )
+  {
+    struct mg_str chunk = mg_str_n( deploymentObj.buf + offset + chunkOffset, len - chunkOffset );
+    hawkbit_chunk_t* chunkPtr = &deployment->chunk[deployment->chunkSize++];
+
+    offset = mg_json_get( chunk, "$.part", &len );
+    if ( offset >= 0 )
+    {
+      snprintf( chunkPtr->part, sizeof( chunkPtr->part ), "%.*s", len, chunk.buf + offset );
+    }
+
+    offset = mg_json_get( chunk, "$.version", &len );
+    if ( offset >= 0 )
+    {
+      snprintf( chunkPtr->version, sizeof( chunkPtr->version ), "%.*s", len, chunk.buf + offset );
+    }
+
+    offset = mg_json_get( chunk, "$.name", &len );
+    if ( offset >= 0 )
+    {
+      snprintf( chunkPtr->name, sizeof( chunkPtr->name ), "%.*s", len, chunk.buf + offset );
+    }
+
+    chunkPtr->artifactsSize = 0;
+    size_t artOffset = 0;
+    while ( ( offset = mg_json_get( chunk, "$.artifacts", &len ) ) >= 0 && chunkPtr->artifactsSize < HAWKBIT_MAX_ARTIFACTS )
+    {
+      struct mg_str artifact = mg_str_n( chunk.buf + offset + artOffset, len - artOffset );
+      hawkbit_artifacts_t* artifactPtr = &chunkPtr->artifacts[chunkPtr->artifactsSize++];
+
+      offset = mg_json_get( artifact, "$.filename", &len );
+      if ( offset >= 0 )
+      {
+        snprintf( artifactPtr->filename, sizeof( artifactPtr->filename ), "%.*s", len, artifact.buf + offset );
+      }
+
+      offset = mg_json_get( artifact, "$.size", &len );
+      if ( offset >= 0 )
+      {
+        artifactPtr->size = (size_t) atoi( mg_str_n( artifact.buf + offset, len ).buf );
+      }
+
+      offset = mg_json_get( artifact, "$._links.download-http.href", &len );
+      if ( offset >= 0 )
+      {
+        snprintf( artifactPtr->download_http, sizeof( artifactPtr->download_http ), "%.*s", len, artifact.buf + offset );
+      }
+    }
+  }
+
   return true;
 }
 
 bool HAWKBITParser_ParseCancelAction( const char* jsonString, int* actionId )
 {
-  lwjson_token_t tokens[64];
-  lwjson_t lwjson;
-  lwjson_init( &lwjson, tokens, LWJSON_ARRAYSIZE( tokens ) );
+  struct mg_str json = mg_str( jsonString );
+  int len;
+  int offset = mg_json_get( json, "$.cancelAction.stopId", &len );
 
-  if ( lwjson_parse_ex( &lwjson, jsonString, strlen( jsonString ) ) == lwjsonOK )
+  if ( offset >= 0 )
   {
-    lwjson_token_t* t = lwjson_get_first_token( &lwjson );
-    if ( t->type == LWJSON_TYPE_OBJECT )
-    {
-      lwjson_token_t* cancelActionToken = NULL;
-      lwjson_token_t* stopIdToken = NULL;
-
-      for ( lwjson_token_t* child = (lwjson_token_t*) lwjson_get_first_child( t ); child != NULL; child = child->next )
-      {
-        if ( child->type == LWJSON_TYPE_OBJECT && strncmp( child->token_name, "cancelAction", child->token_name_len ) == 0 )
-        {
-          cancelActionToken = child;
-          break;
-        }
-      }
-
-      if ( cancelActionToken != NULL )
-      {
-        for ( lwjson_token_t* child = (lwjson_token_t*) lwjson_get_first_child( cancelActionToken ); child != NULL; child = child->next )
-        {
-          if ( child->type == LWJSON_TYPE_STRING && strncmp( child->token_name, "stopId", child->token_name_len ) == 0 )
-          {
-            stopIdToken = child;
-            break;
-          }
-        }
-      }
-
-      if ( stopIdToken != NULL )
-      {
-        *actionId = atoi( lwjson_get_val_string( stopIdToken, NULL ) );
-        lwjson_free( &lwjson );
-        return true;
-      }
-    }
-    lwjson_free( &lwjson );
+    *actionId = atoi( mg_str_n( json.buf + offset, len ).buf );
+    return true;
   }
-  else
-  {
-    lwjson_free( &lwjson );
-  }
+
   return false;
 }

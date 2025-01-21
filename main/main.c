@@ -115,8 +115,6 @@ void app_main( void )
   wifiDrvInit();
   MongooseTask_Init();
   NetworkManagerInit();
-  ///// Remove this line after tests
-  HAWKBITConfig_Init();
 
   // TemperatureInit();
   // TCPServer_Init();

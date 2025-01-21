@@ -70,16 +70,16 @@ static int _handle_save_configuration( struct mg_str* uri, struct mg_str* data, 
   struct mg_str save_uri = mg_str( buffer );
   if ( mg_match( *uri, save_uri, NULL ) )
   {
-    LOG(PRINT_INFO, "Save configuration");
+    LOG( PRINT_INFO, "Save configuration" );
     if ( method != HTTP_SERVER_METHOD_POST )
     {
-      LOG(PRINT_INFO, "Method not allowed %d", method);
+      LOG( PRINT_INFO, "Method not allowed %d", method );
       response = "Method not allowed";
       return 405;
     }
     if ( MQTTConfig_Save() )
     {
-      LOG(PRINT_INFO, "Save success");
+      LOG( PRINT_INFO, "Save success" );
       response = "OK";
       return 200;
     }

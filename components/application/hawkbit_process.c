@@ -97,6 +97,8 @@ static char urlDeploymentBaseFeedback[HAWKBIT_URL_SIZE + 16];
 static char urlCancelAction[HAWKBIT_URL_SIZE];    // Add this line
 static hawkbit_deployment_t hawkbitDeployment;
 static TimerHandle_t polling_timer;
+static TaskHandle_t hawkbit_task_handle = NULL;
+static esp_http_client_handle_t client = NULL;
 
 static module_ctx_t ctx;
 
@@ -242,17 +244,17 @@ static esp_err_t _set_security_token( esp_http_client_handle_t http_client )
   return err;
 }
 
-static esp_err_t _http_client_init_cb( esp_http_client_handle_t http_client )
-{
-  return _set_security_token( http_client );
-}
+// static esp_err_t _http_client_init_cb( esp_http_client_handle_t http_client )
+// {
+//   return _set_security_token( http_client );
+// }
 
-static void _set_update_error( void )
-{
-  LOG( PRINT_ERROR, "%s", ctx.update_result_details );
-  ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_FAILED;
-  _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
-}
+// static void _set_update_error( void )
+// {
+//   LOG( PRINT_ERROR, "%s", ctx.update_result_details );
+//   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_FAILED;
+//   _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
+// }
 
 esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_method_t method, const char* data, int len, const char* accept )
 {
@@ -266,7 +268,7 @@ esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_met
     .crt_bundle_attach = _bundle_attach,
   };
 
-  esp_http_client_handle_t client = esp_http_client_init( &config );
+  client = esp_http_client_init( &config );
   if ( client == NULL )
   {
     return NULL;
@@ -296,6 +298,7 @@ esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_met
   return client;
 init_fail:
   esp_http_client_cleanup( client );
+  client = NULL;
   return NULL;
 }
 
@@ -625,5 +628,35 @@ void HawkbitProcess_Init( void )
   polling_timer = xTimerCreate( "PollingTimer", pdMS_TO_TICKS( 300000 ), pdTRUE, NULL, _timer_polling );
   assert( polling_timer );
 
-  xTaskCreate( &_task, "_hawkbit_task", 1024 * 6, NULL, 5, NULL );
+  xTaskCreate( &_task, "_hawkbit_task", 1024 * 6, NULL, 5, &hawkbit_task_handle );
+}
+
+void HawkbitProcess_Deinit( void )
+{
+  if ( polling_timer != NULL )
+  {
+    xTimerStop( polling_timer, 0 );
+    xTimerDelete( polling_timer, 0 );
+    polling_timer = NULL;
+  }
+
+  if ( ctx.queue != NULL )
+  {
+    vQueueDelete( ctx.queue );
+    ctx.queue = NULL;
+  }
+
+  if ( hawkbit_task_handle != NULL )
+  {
+    vTaskDelete( hawkbit_task_handle );
+    hawkbit_task_handle = NULL;
+  }
+
+  if ( client != NULL )
+  {
+    esp_http_client_cleanup( client );
+    client = NULL;
+  }
+
+  memset( &ctx, 0, sizeof( ctx ) );
 }

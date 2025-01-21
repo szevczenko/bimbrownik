@@ -27,4 +27,9 @@ void HawkbitProcess_Init( void );
  */
 void HawkbitProcess_PostMsg( app_event_t* event );
 
+/**
+ * @brief   Deinit hawkbit task.
+ */
+void HawkbitProcess_Deinit( void );
+
 #endif

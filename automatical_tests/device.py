@@ -70,7 +70,7 @@ class Device:
         :rtype: tuple(int, str)
         """
         return self.http_api_set("hawkbit", config_name, config_value)
-    
+
     def put_hawkbit_config(self, config_name: str, config_value: str):
         r"""Put Hawkbit configuration on device
 
@@ -114,9 +114,77 @@ class Device:
         """
         return self.http_api_set("dev_config", "restart", "")
 
+    def get_serial_number_config(self):
+        r"""Get serial number configuration from device
+
+        Returns a tuple with status code and serial number if operation success. Otherwise return status code and None.
+        :rtype: tuple(int, str or None)
+        """
+        status, value = self.get_device_config()
+        if status == 200:
+            print(value)
+            try:
+                config = json.loads(value)
+                return status, config.get("sn", None)
+            except json.JSONDecodeError:
+                return status, None
+        return status, None
+
+    def set_serial_number_config(self, serial_number: str, magic_word: str = ""):
+        r"""Set serial number configuration on device
+
+        Returns a tuple with status code and response text.
+        :rtype: tuple(int, str)
+        """
+        data = json.dumps({"sn": serial_number, "magic": magic_word})
+        return self.http_api_set("dev_config", "serial_number", data)
+
+    def scan_wifi(self):
+        r"""Scan for available Wi-Fi networks
+
+        Returns a list of SSIDs of available Wi-Fi networks.
+        :rtype: list of str
+        """
+        with requests.Session() as session:
+            url = f"http://{self.address}:{self.port}/ap.json"
+            response = session.get(url)
+            if response.status_code == 200:
+                networks = response.json()
+                return [network['ssid'] for network in networks if network['ssid'].startswith("Bimbrownik:")]
+            else:
+                return []
+
+    def connect_wifi(self, ssid: str, password: str):
+        r"""Connect to a Wi-Fi network
+
+        Returns a tuple with status code and response text.
+        :rtype: tuple(int, str)
+        """
+        with requests.Session() as session:
+            url = f"http://{self.address}:{self.port}/connect.json"
+            headers = {
+                "X-Custom-ssid": ssid,
+                "X-Custom-pwd": password
+            }
+            response = session.post(url, headers=headers)
+            return response.status_code, response.text
+
 
 if __name__ == "__main__":
     # devices = ScanDevices("Production", 3)
     # address = devices[0][0]
     address = "192.168.1.154"
     dev = Device(address, "COM6")
+
+    # Scan for Wi-Fi networks
+    wifi_networks = dev.scan_wifi()
+    print("Available Wi-Fi networks starting with 'Bimbrownik:':")
+    for ssid in wifi_networks:
+        print(ssid)
+
+    # Connect to a Wi-Fi network
+    if wifi_networks:
+        ssid = wifi_networks[0]
+        password = "Your_WiFi_Password"
+        status, response = dev.connect_wifi(ssid, password)
+        print(f"Connecting to {ssid}: {status}, {response}")
