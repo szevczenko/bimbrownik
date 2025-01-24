@@ -3,6 +3,8 @@ import serial
 from scan_devices import ScanDevices
 import time
 import json
+import pywifi
+from pywifi import const
 
 
 class Device:
@@ -139,34 +141,64 @@ class Device:
         data = json.dumps({"sn": serial_number, "magic": magic_word})
         return self.http_api_set("dev_config", "serial_number", data)
 
-    def scan_wifi(self):
-        r"""Scan for available Wi-Fi networks
 
-        Returns a list of SSIDs of available Wi-Fi networks.
-        :rtype: list of str
-        """
-        with requests.Session() as session:
-            url = f"http://{self.address}:{self.port}/ap.json"
-            response = session.get(url)
-            if response.status_code == 200:
-                networks = response.json()
-                return [network['ssid'] for network in networks if network['ssid'].startswith("Bimbrownik:")]
+def host_scan_and_connect_to_device(password: str):
+    r"""Scan for available Wi-Fi networks and connect to the first one starting with 'Bimbrownik:'
+
+    Returns a tuple with status code and response text.
+    :rtype: tuple(int, str)
+    """
+    wifi = pywifi.PyWiFi()
+    iface = wifi.interfaces()[0]
+    iface.scan()
+    time.sleep(2)  # Wait for the scan to complete
+    scan_results = iface.scan_results()
+    for network in scan_results:
+        if network.ssid.startswith("Bimbrownik:"):
+            iface.disconnect()
+            time.sleep(1)
+            profile = pywifi.Profile()
+            profile.ssid = network.ssid
+            profile.auth = const.AUTH_ALG_OPEN
+            profile.akm.append(const.AKM_TYPE_WPA2PSK)
+            profile.cipher = const.CIPHER_TYPE_CCMP
+            profile.key = password
+            iface.remove_all_network_profiles()
+            tmp_profile = iface.add_network_profile(profile)
+            iface.connect(tmp_profile)
+            time.sleep(10)  # Wait for the connection to complete
+            if iface.status() == const.IFACE_CONNECTED:
+                return 200, f"Connected to {network.ssid}"
             else:
-                return []
+                return 400, f"Failed to connect to {network.ssid}"
+    return 404, "No Wi-Fi networks starting with 'Bimbrownik:' found"
 
-    def connect_wifi(self, ssid: str, password: str):
-        r"""Connect to a Wi-Fi network
 
-        Returns a tuple with status code and response text.
-        :rtype: tuple(int, str)
-        """
-        with requests.Session() as session:
-            url = f"http://{self.address}:{self.port}/connect.json"
-            headers = {
-                "X-Custom-ssid": ssid,
-                "X-Custom-pwd": password
-            }
-            response = session.post(url, headers=headers)
+def device_scan_and_connect(ssid: str, password: str):
+    r"""Scan for available Wi-Fi networks and connect to the specified one using device's Wi-Fi HTTP API
+
+    Returns a tuple with status code and response text.
+    :rtype: tuple(int, str)
+    """
+    with requests.Session() as session:
+        # Scan for Wi-Fi networks
+        url = "http://10.10.0.1/ap.json"
+        response = session.get(url)
+        if response.status_code == 200:
+            networks = response.json()
+            for network in networks:
+                print(network)
+                if network['ssid'] == ssid:
+                    # Connect to the Wi-Fi network
+                    connect_url = "http://10.10.0.1/connect.json"
+                    headers = {
+                        "X-Custom-ssid": network['ssid'],
+                        "X-Custom-pwd": password
+                    }
+                    connect_response = session.post(connect_url, headers=headers)
+                    return connect_response.status_code, connect_response.text
+            return 404, f"No Wi-Fi networks with SSID '{ssid}' found"
+        else:
             return response.status_code, response.text
 
 
@@ -176,15 +208,10 @@ if __name__ == "__main__":
     address = "192.168.1.154"
     dev = Device(address, "COM6")
 
-    # Scan for Wi-Fi networks
-    wifi_networks = dev.scan_wifi()
-    print("Available Wi-Fi networks starting with 'Bimbrownik:':")
-    for ssid in wifi_networks:
-        print(ssid)
-
-    # Connect to a Wi-Fi network
-    if wifi_networks:
-        ssid = wifi_networks[0]
-        password = "Your_WiFi_Password"
-        status, response = dev.connect_wifi(ssid, password)
-        print(f"Connecting to {ssid}: {status}, {response}")
+    # Scan and connect to Wi-Fi network
+    ssid = "Bimbrownik:Example"
+    password = "SuperTrudne1!-_"
+    status, response = host_scan_and_connect_to_device(password)
+    print(f"Scan and connect result: {status}, {response}")
+    status, response = device_scan_and_connect("TP-Link_2AC1", "19681115")
+    print(f"Scan and connect result: {status}, {response}")

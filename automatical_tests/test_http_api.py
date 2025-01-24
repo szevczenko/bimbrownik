@@ -29,6 +29,43 @@ class TestClassHttpApi:
         self.target = None
         self._scan()
 
+    def test_init_device_wifi_connection(self):
+        ssid = "Bimbrownik:Example"
+        password = "SuperTrudne1!-_"
+        router_ssid = "TP-Link_2AC1"
+        router_password = "19681115"
+
+        # Try to connect to the device using host_scan_and_connect_to_device
+        status, response = device.host_scan_and_connect_to_device(password)
+        if status != 200:
+            # If connection fails, try to scan for devices
+            self._scan()
+            if self.target is None:
+                assert False, "Failed to scan and connect to the device"
+            else:
+                return
+
+        # Try to connect to the router using device_scan_and_connect three times
+        for _ in range(3):
+            status, response = device.device_scan_and_connect(
+                router_ssid, router_password
+            )
+            if status == 200:
+                break
+            time.sleep(5)
+        else:
+            assert False, "Failed to connect to the router using the device"
+
+        # Sleep for 10 seconds
+        time.sleep(10)
+
+        # Try to scan for devices again
+        self._scan()
+        if self.target is None:
+            assert (
+                False
+            ), "Failed to scan and connect to the device after connecting to the router"
+
     def test_hawkbit_api(self):
         self._scan()
         address = f"http://example{random.randint(0,100)}.com"
