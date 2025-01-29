@@ -239,8 +239,9 @@ static esp_err_t _set_security_token( esp_http_client_handle_t http_client )
   char token[64] = {};
   char header[13 + sizeof( token )];
   HAWKBITConfig_GetString( token, HAWKBIT_CONFIG_VALUE_TOKEN, sizeof( token ) );
-  sprintf( header, "TargetToken %s", token );
+  sprintf( header, "GatewayToken %s", token );
   esp_err_t err = esp_http_client_set_header( http_client, "Authorization", header );
+  printf("Authorization: %s\n", header);
   return err;
 }
 
@@ -273,12 +274,14 @@ esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_met
   {
     return NULL;
   }
+  printf( "Method %d\n", method );
   if ( ESP_OK != esp_http_client_set_method( client, method ) )
   {
     goto init_fail;
   }
   if ( accept != NULL )
   {
+    printf( "Accept %s\n", accept );
     if ( ESP_OK != esp_http_client_set_header( client, "Accept", accept ) )
     {
       goto init_fail;
@@ -297,6 +300,7 @@ esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_met
   }
   return client;
 init_fail:
+  printf( "Failed to initialize HTTP client\n" );
   esp_http_client_cleanup( client );
   client = NULL;
   return NULL;
@@ -308,7 +312,7 @@ static const char* _get_poll_address( void )
   HAWKBITConfig_GetString( ctx.address, HAWKBIT_CONFIG_VALUE_ADDRESS, sizeof( ctx.address ) );
   HAWKBITConfig_GetString( ctx.tenant, HAWKBIT_CONFIG_VALUE_TENANT, sizeof( ctx.tenant ) );
   const char* sn = DevConfig_GetSerialNumber();
-  snprintf( ctx.url, sizeof( ctx.url ), "%s%s/%s/controller/v1/%s", ctx.use_tls ? "https://" : "http://",
+  snprintf( ctx.url, sizeof( ctx.url ), "%s/%s/controller/v1/%s",
             ctx.address, ctx.tenant, sn );
   return ctx.url;
 }
@@ -384,6 +388,7 @@ void _hawkbit_apply_callback( void )
 static void _init( void )
 {
   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_SUCCESS;
+  _send_internal_event( HAWKBIT_POLL_SERVER );
 }
 
 static void _handle_cancel_action( void )
@@ -625,7 +630,7 @@ void HawkbitProcess_Init( void )
   ctx.queue = xQueueCreate( 8, sizeof( event_t ) );
   assert( ctx.queue );
 
-  polling_timer = xTimerCreate( "PollingTimer", pdMS_TO_TICKS( 300000 ), pdTRUE, NULL, _timer_polling );
+  polling_timer = xTimerCreate( "PollingTimer", pdMS_TO_TICKS( 30000 ), pdTRUE, NULL, _timer_polling );
   assert( polling_timer );
 
   xTaskCreate( &_task, "_hawkbit_task", 1024 * 6, NULL, 5, &hawkbit_task_handle );

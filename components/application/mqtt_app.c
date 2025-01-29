@@ -292,6 +292,10 @@ void MqttApp_Init( void )
 // Deinitialize the MQTT driver
 void MqttApp_Deinit( void )
 {
+  if ( initialized == 0 )
+  {
+    return;
+  }
   xTimerDelete( reconnect_timer, 0 );
   xTimerDelete( suback_timer, 0 );
   xTimerDelete( puback_timer, 0 );
