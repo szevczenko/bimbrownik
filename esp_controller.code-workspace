@@ -170,7 +170,8 @@
             "http_server.h": "c",
             "optional": "c",
             "mdns.h": "c",
-            "unity.h": "c"
+            "unity.h": "c",
+            "hawkbit_config.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

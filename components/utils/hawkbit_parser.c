@@ -78,33 +78,26 @@ bool HAWKBITParser_ParseUrl( const char* jsonString, char* urlConfigData, size_t
   memset( urlCancelAction, 0, urlCancelActionSize );
 
   struct mg_str json = mg_str( jsonString );
-  int len;
-  int offset = mg_json_get( json, "$._links", &len );
 
-  if ( offset < 0 )
+  char* configData = mg_json_get_str( json, "$._links.configData.href" );
+  if ( configData != NULL )
   {
-    LOG( PRINT_ERROR, "Invalid JSON: missing _links" );
-    return false;
+    snprintf( urlConfigData, urlConfigDataSize, "%s", configData );
+    free( configData );
   }
 
-  struct mg_str links = mg_str_n( json.buf + offset, len );
-
-  offset = mg_json_get( links, "$.configData.href", &len );
-  if ( offset >= 0 )
+  char* deploymentBase = mg_json_get_str( json, "$._links.deploymentBase.href" );
+  if ( deploymentBase != NULL )
   {
-    snprintf( urlConfigData, urlConfigDataSize, "%.*s", len, links.buf + offset );
+    snprintf( urlDeploymentBase, urlDeploymentBaseSize, "%s", deploymentBase );
+    free( deploymentBase );
   }
 
-  offset = mg_json_get( links, "$.deploymentBase.href", &len );
-  if ( offset >= 0 )
+  char* cancelAction = mg_json_get_str( json, "$._links.cancelAction.href" );
+  if ( cancelAction != NULL )
   {
-    snprintf( urlDeploymentBase, urlDeploymentBaseSize, "%.*s", len, links.buf + offset );
-  }
-
-  offset = mg_json_get( links, "$.cancelAction.href", &len );
-  if ( offset >= 0 )
-  {
-    snprintf( urlCancelAction, urlCancelActionSize, "%.*s", len, links.buf + offset );
+    snprintf( urlCancelAction, urlCancelActionSize, "%s", cancelAction );
+    free( cancelAction );
   }
 
   return true;

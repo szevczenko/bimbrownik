@@ -30,7 +30,6 @@ class TestClassHttpApi:
         self._scan()
 
     def test_init_device_wifi_connection(self):
-        ssid = "Bimbrownik:Example"
         password = "SuperTrudne1!-_"
         router_ssid = "TP-Link_2AC1"
         router_password = "19681115"

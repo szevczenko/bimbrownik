@@ -62,9 +62,10 @@ class TestClassHawkbit:
         # Get the serial number of the device
         status, serial_number = self.dev.get_serial_number_config()
         assert status == 200, f"Failed to get serial number: {serial_number}"
+        print(f"Serial number: {serial_number}")
 
         # Verify if the device is registered in Hawkbit server
-        target_id = f"AAD_{serial_number:08}"
+        target_id = f"{serial_number}"
         url = f"{self.hawkbit_api.address}/rest/v1/targets/{target_id}"
 
         for _ in range(3):
@@ -74,6 +75,29 @@ class TestClassHawkbit:
             time.sleep(5)
         else:
             assert False, f"Device {target_id} is not registered in Hawkbit server"
+    
+    def test_add_binary_file_and_update_device(self):
+        status, serial_number = self.dev.get_serial_number_config()
+        assert status == 200, f"Failed to get serial number: {serial_number}"
+        print(f"Serial number: {serial_number}")
+        # Add a binary file to Hawkbit server
+        file_path = "../build/bimbrownik.bin"
+        status, response = self.hawkbit_api.add_software_module("test_module")
+        assert status == 201, f"Failed to add software module: {response}"
+        status, response = self.hawkbit_api.add_software_module_version("test_module", "1.0")
+        assert status == 201, f"Failed to add software module version: {response}"
+        status, response = self.hawkbit_api.add_artifact("test_module", "1.0", file_path)
+        assert status == 201, f"Failed to add artifact: {response}"
+        status, response = self.hawkbit_api.create_distribution_set("test_distribution", "test_module", "1.0")
+        assert status == 201, f"Failed to create distribution set: {response}"
+        status, response = self.hawkbit_api.assign_distribution_set("test_distribution", serial_number)
+        assert status == 200, f"Failed to assign distribution set: {response}"
+
+
+        # Update the device
+        status, response = self.dev.update_device()
+        assert status == 200, f"Failed to update device: {response}"
+        time.sleep(5)
 
 if __name__ == "__main__":
     pytest.main()

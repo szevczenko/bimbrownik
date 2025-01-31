@@ -17,23 +17,19 @@
 
 #include "app_config.h"
 #include "dev_config.h"
-#include "esp_crt_bundle.h"
-#include "esp_efuse.h"
-#include "esp_event.h"
-#include "esp_http_client.h"
-#include "esp_system.h"
-#include "esp_tls.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "hawkbit_config.h"
 #include "hawkbit_parser.h"
+#include "mongoose_task.h"
 #include "ota_drv.h"
 
 /* Private macros ------------------------------------------------------------*/
 #define MODULE_NAME "[HAWKBIT_P] "
 #define DEBUG_LVL   PRINT_DEBUG
 
-#if CONFIG_DEBUG_WIFI
+#if CONFIG_DEBUG_HTTP_HAWKBIT
 #define LOG( _lvl, ... ) \
   debug_printf( DEBUG_LVL, _lvl, MODULE_NAME __VA_ARGS__ )
 #else
@@ -91,16 +87,18 @@ static void _timer_polling( TimerHandle_t xTimer );
 
 /* Private variables ---------------------------------------------------------*/
 static char localResponseBuffer[2048];
+static int responseCode;
 static char urlConfigData[HAWKBIT_URL_SIZE];
 static char urlDeploymentBase[HAWKBIT_URL_SIZE];
 static char urlDeploymentBaseFeedback[HAWKBIT_URL_SIZE + 16];
-static char urlCancelAction[HAWKBIT_URL_SIZE];    // Add this line
+static char urlCancelAction[HAWKBIT_URL_SIZE];
 static hawkbit_deployment_t hawkbitDeployment;
 static TimerHandle_t polling_timer;
 static TaskHandle_t hawkbit_task_handle = NULL;
-static esp_http_client_handle_t client = NULL;
 
 static module_ctx_t ctx;
+static struct mg_connection* client_conn = NULL;
+static SemaphoreHandle_t http_semaphore;
 
 /* Private functions ---------------------------------------------------------*/
 static void _send_internal_event( event_t id )
@@ -109,16 +107,6 @@ static void _send_internal_event( event_t id )
   {
     assert( 0 );
   }
-}
-
-static esp_err_t _bundle_attach( void* conf )
-{
-  mbedtls_ssl_config* ssl_conf = (mbedtls_ssl_config*) conf;
-  if ( ssl_conf != NULL )
-  {
-    mbedtls_ssl_conf_authmode( ssl_conf, MBEDTLS_SSL_VERIFY_OPTIONAL );
-  }
-  return esp_crt_bundle_attach( ssl_conf );
 }
 
 bool _find_action_id( const char* str, char* id, size_t id_len )
@@ -151,159 +139,74 @@ static void _timer_polling( TimerHandle_t xTimer )
   _send_internal_event( HAWKBIT_POLL_SERVER );
 }
 
-static esp_err_t _http_event_handler( esp_http_client_event_t* evt )
+static void _http_event_handler( struct mg_connection* c, int ev, void* ev_data )
 {
-  static char* output_buffer;    // Buffer to store response of http request from event handler
-  static int output_len;    // Stores number of bytes read
-  switch ( evt->event_id )
+  struct mg_http_message* hm = (struct mg_http_message*) ev_data;
+  switch ( ev )
   {
-    case HTTP_EVENT_ON_HEADER:
-      LOG( PRINT_DEBUG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value );
-      break;
-    case HTTP_EVENT_ON_DATA:
-      LOG( PRINT_DEBUG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len );
-      if ( !esp_http_client_is_chunked_response( evt->client ) )
+    case MG_EV_HTTP_MSG:
+      responseCode = mg_http_status( hm );
+      LOG( PRINT_DEBUG, "HTTP response: %d %.*s", responseCode, (int) hm->body.len, hm->body.buf );
+      if ( responseCode == 200 )
       {
-        // If user_data buffer is configured, copy the response into the buffer
-        int copy_len = 0;
-        if ( evt->user_data )
-        {
-          copy_len = MIN( evt->data_len, ( sizeof( localResponseBuffer ) - output_len ) );
-          if ( copy_len )
-          {
-            memcpy( evt->user_data + output_len, evt->data, copy_len );
-          }
-        }
-        else
-        {
-          const int buffer_len = esp_http_client_get_content_length( evt->client );
-          if ( output_buffer == NULL )
-          {
-            output_buffer = (char*) malloc( buffer_len );
-            output_len = 0;
-            if ( output_buffer == NULL )
-            {
-              LOG( PRINT_ERROR, "Failed to allocate memory for output buffer" );
-              return ESP_FAIL;
-            }
-          }
-          copy_len = MIN( evt->data_len, ( buffer_len - output_len ) );
-          if ( copy_len )
-          {
-            memcpy( output_buffer + output_len, evt->data, copy_len );
-          }
-        }
-        output_len += copy_len;
+        strncpy( localResponseBuffer, hm->body.buf, MIN( sizeof( localResponseBuffer ) - 1, hm->body.len ) );
+        localResponseBuffer[MIN( sizeof( localResponseBuffer ) - 1, hm->body.len )] = '\0';
       }
+      c->is_closing = 1;
+      xSemaphoreGive( http_semaphore );
       break;
-    case HTTP_EVENT_ON_FINISH:
-      LOG( PRINT_DEBUG, "HTTP_EVENT_ON_FINISH" );
-      if ( output_buffer != NULL )
-      {
-        free( output_buffer );
-        output_buffer = NULL;
-      }
-      output_len = 0;
+    case MG_EV_ERROR:
+      LOG( PRINT_ERROR, "HTTP request failed" );
+      c->is_closing = 1;
+      responseCode = -1;
+      xSemaphoreGive( http_semaphore );
       break;
-    case HTTP_EVENT_DISCONNECTED:
-      LOG( PRINT_INFO, "HTTP_EVENT_DISCONNECTED" );
-      int mbedtls_err = 0;
-      esp_err_t err = esp_tls_get_and_clear_last_error( (esp_tls_error_handle_t) evt->data, &mbedtls_err, NULL );
-      if ( err != 0 )
-      {
-        LOG( PRINT_INFO, "Last esp error code: 0x%x", err );
-        LOG( PRINT_INFO, "Last mbedtls failure: 0x%x", mbedtls_err );
-      }
-      if ( output_buffer != NULL )
-      {
-        free( output_buffer );
-        output_buffer = NULL;
-      }
-      output_len = 0;
-      break;
-    case HTTP_EVENT_REDIRECT:
-      LOG( PRINT_DEBUG, "HTTP_EVENT_REDIRECT" );
-      esp_http_client_set_header( evt->client, "From", "user@example.com" );
-      esp_http_client_set_header( evt->client, "Accept", "text/html" );
-      esp_http_client_set_redirection( evt->client );
-      break;
-
     default:
       break;
   }
-  return ESP_OK;
 }
 
-static esp_err_t _set_security_token( esp_http_client_handle_t http_client )
+static void _http_perform( const char* url, const char* method, const char* data, const char* accept )
 {
+  client_conn = mg_http_connect( &mgr, url, _http_event_handler, NULL );
+  if ( client_conn == NULL )
+  {
+    LOG( PRINT_ERROR, "Failed to initialize HTTP client" );
+    return;
+  }
+
   char token[64] = {};
-  char header[13 + sizeof( token )];
+  struct mg_str host = mg_url_host( url );
+  int port = mg_url_port( url );
   HAWKBITConfig_GetString( token, HAWKBIT_CONFIG_VALUE_TOKEN, sizeof( token ) );
-  sprintf( header, "GatewayToken %s", token );
-  esp_err_t err = esp_http_client_set_header( http_client, "Authorization", header );
-  printf("Authorization: %s\n", header);
-  return err;
+  static char test[2048] = {};
+
+  if ( strcmp( method, "GET" ) == 0 )
+  {
+    sprintf( test, "GET %s HTTP/1.1\r\nHost: %.*s:%d\r\nAuthorization: GatewayToken %s\r\nAccept: %s\r\n\r\n", url, host.len, host.buf, port, token, accept ? accept : "application/json" );
+    LOG( PRINT_DEBUG, "HTTP request: %s", test );
+    mg_printf( client_conn, "%s", test );
+  }
+  else if ( strcmp( method, "POST" ) == 0 )
+  {
+    sprintf( test, "POST %s HTTP/1.1\r\nHost: %.*s:%d\r\nAuthorization: GatewayToken %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n", url, host.len, host.buf, port, token, strlen( data ) );
+    LOG( PRINT_DEBUG, "HTTP request:\n%s\ndata: %s", test, data );
+    mg_printf( client_conn, "%s%s", test, data );
+  }
+  else if ( strcmp( method, "PUT" ) == 0 )
+  {
+    sprintf( test, "PUT %s HTTP/1.1\r\nHost: %.*s:%d\r\nAuthorization: GatewayToken %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n", url, host.len, host.buf, port, token, strlen( data ) );
+    LOG( PRINT_DEBUG, "HTTP request:\n%s\ndata: %s", test, data );
+    mg_printf( client_conn, "%s%s", test, data );
+  }
 }
 
-// static esp_err_t _http_client_init_cb( esp_http_client_handle_t http_client )
-// {
-//   return _set_security_token( http_client );
-// }
-
-// static void _set_update_error( void )
-// {
-//   LOG( PRINT_ERROR, "%s", ctx.update_result_details );
-//   ctx.hawkbit_update_result = HAWKBIT_UPDATE_RESULT_FAILED;
-//   _send_internal_event( HAWKBIT_POST_HAWKBIT_RESULT );
-// }
-
-esp_http_client_handle_t _init_http_client( const char* url, esp_http_client_method_t method, const char* data, int len, const char* accept )
+static void _http_perform_and_wait( const char* url, const char* method, const char* data, const char* accept )
 {
-  memset( localResponseBuffer, 0, sizeof( localResponseBuffer ) );
-  esp_http_client_config_t config = {
-    .url = url,
-    .event_handler = _http_event_handler,
-    .user_data = localResponseBuffer,    // Pass address of local buffer to get response
-    .disable_auto_redirect = true,
-    .timeout_ms = 3000,
-    .crt_bundle_attach = _bundle_attach,
-  };
+  _http_perform( url, method, data, accept );
 
-  client = esp_http_client_init( &config );
-  if ( client == NULL )
-  {
-    return NULL;
-  }
-  printf( "Method %d\n", method );
-  if ( ESP_OK != esp_http_client_set_method( client, method ) )
-  {
-    goto init_fail;
-  }
-  if ( accept != NULL )
-  {
-    printf( "Accept %s\n", accept );
-    if ( ESP_OK != esp_http_client_set_header( client, "Accept", accept ) )
-    {
-      goto init_fail;
-    }
-  }
-  if ( ESP_OK != _set_security_token( client ) )
-  {
-    goto init_fail;
-  }
-  if ( data != NULL )
-  {
-    if ( ESP_OK != esp_http_client_set_header( client, "Content-Type", "application/json" ) || ESP_OK != esp_http_client_set_post_field( client, data, len ) )
-    {
-      goto init_fail;
-    }
-  }
-  return client;
-init_fail:
-  printf( "Failed to initialize HTTP client\n" );
-  esp_http_client_cleanup( client );
-  client = NULL;
-  return NULL;
+  // Wait for the response
+  xSemaphoreTake( http_semaphore, portMAX_DELAY );
 }
 
 static const char* _get_poll_address( void )
@@ -325,24 +228,16 @@ static bool _post_hawkbit_result( const char* result, const char* details )
   snprintf( urlDeploymentBaseFeedback, sizeof( urlDeploymentBaseFeedback ) - 1, "%s/deploymentBase/%s/feedback", base_url, ctx.action_id );
   snprintf( post_data, sizeof( post_data ) - 1, format, ctx.action_id, result, details );
 
-  esp_http_client_handle_t client = _init_http_client( urlDeploymentBaseFeedback, HTTP_METHOD_POST, post_data, strlen( post_data ), NULL );
-  if ( client == NULL )
+  _http_perform_and_wait( urlDeploymentBaseFeedback, "POST", post_data, NULL );
+
+  if ( responseCode != 200 )
   {
+    LOG( PRINT_ERROR, "HTTP POST request failed" );
     return false;
   }
-  esp_err_t err = esp_http_client_perform( client );
-  if ( err == ESP_OK )
-  {
-    LOG( PRINT_INFO, "HTTP POST Status = %d, content_length = %" PRIu64,
-         esp_http_client_get_status_code( client ),
-         esp_http_client_get_content_length( client ) );
-  }
-  else
-  {
-    LOG( PRINT_ERROR, "HTTP POST request failed: %s", esp_err_to_name( err ) );
-  }
-  esp_http_client_cleanup( client );
-  return err == ESP_OK;
+
+  LOG( PRINT_INFO, "HTTP POST Status = 200, content_length = %d", strlen( localResponseBuffer ) );
+  return true;
 }
 
 static void _download_and_update_firmware( const char* url )
@@ -393,24 +288,11 @@ static void _init( void )
 
 static void _handle_cancel_action( void )
 {
-  esp_http_client_handle_t client = _init_http_client( urlCancelAction, HTTP_METHOD_GET, NULL, 0, "application/hal+json" );
-  if ( client == NULL )
-  {
-    LOG( PRINT_ERROR, "Failed to initialize HTTP client for cancel action" );
-    return;
-  }
+  _http_perform_and_wait( urlCancelAction, "GET", NULL, "application/hal+json" );
 
-  esp_err_t err = esp_http_client_perform( client );
-  if ( err == ESP_OK )
+  if ( responseCode != 200 )
   {
-    LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
-         esp_http_client_get_status_code( client ),
-         esp_http_client_get_content_length( client ) );
-  }
-  else
-  {
-    LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
-    esp_http_client_cleanup( client );
+    LOG( PRINT_ERROR, "HTTP GET request failed" );
     return;
   }
 
@@ -432,40 +314,24 @@ static void _handle_cancel_action( void )
   {
     LOG( PRINT_ERROR, "Failed to parse cancel action response" );
   }
-
-  esp_http_client_cleanup( client );
 }
 
 static void _polling( void )
 {
   const char* url = _get_poll_address();
-
-  esp_http_client_handle_t client = _init_http_client( url, HTTP_METHOD_GET, NULL, 0, "application/hal+json" );
-  if ( client == NULL )
-  {
-    return;
-  }
-
-  esp_err_t err = esp_http_client_perform( client );
+  _http_perform_and_wait( url, "GET", NULL, "application/hal+json" );
   xTimerStart( polling_timer, 0 );
 
-  if ( err == ESP_OK )
+  if ( responseCode != 200 )
   {
-    LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
-         esp_http_client_get_status_code( client ),
-         esp_http_client_get_content_length( client ) );
-  }
-  else
-  {
-    LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
-    esp_http_client_cleanup( client );
+    LOG( PRINT_ERROR, "HTTP GET request failed" );
     return;
   }
+
   LOG( PRINT_INFO, "%s", localResponseBuffer );
 
-  if ( false == HAWKBITParser_ParseUrl( localResponseBuffer, urlConfigData, sizeof( urlConfigData ), urlDeploymentBase, sizeof( urlDeploymentBase ), urlCancelAction, sizeof( urlCancelAction ) ) )
+  if ( !HAWKBITParser_ParseUrl( localResponseBuffer, urlConfigData, sizeof( urlConfigData ), urlDeploymentBase, sizeof( urlDeploymentBase ), urlCancelAction, sizeof( urlCancelAction ) ) )
   {
-    esp_http_client_cleanup( client );
     return;
   }
 
@@ -493,58 +359,35 @@ static void _polling( void )
     LOG( PRINT_INFO, "Cancel action URL found: %s", urlCancelAction );
     _send_internal_event( HAWKBIT_STOP_ACTION_ID );
   }
-
-  esp_http_client_cleanup( client );
 }
 
 static void _post_config_data( void )
 {
   LOG( PRINT_INFO, "post_config_data: %s", urlConfigData );
-  const char* post_data = "{\"mode\":\"merge\",\"data\":{\"VIN\":\"JH4TB2H26CC000001\", \
-                          \"hwRevision\":\"1\"},\"status\":{\"result\":{\"finished\":\"success\"}, \
-                          \"execution\": \"closed\",\"details\":[]}}";
-  esp_http_client_handle_t client = _init_http_client( urlConfigData, HTTP_METHOD_PUT, post_data, strlen( post_data ), "application/hal+json" );
-  if ( client == NULL )
-  {
-    return;
-  }
+  const char* post_data = "{\"mode\":\"merge\",\"data\":{\"VIN\":\"JH4TB2H26CC000001\","
+                          "\"hwRevision\":\"1\"},\"status\":{\"result\":{\"finished\":\"success\"},"
+                          "\"execution\": \"closed\",\"details\":[]}}";
+  _http_perform_and_wait( urlConfigData, "PUT", post_data, "application/hal+json" );
 
-  esp_err_t err = esp_http_client_perform( client );
-  if ( err == ESP_OK )
+  if ( responseCode != 200 )
   {
-    LOG( PRINT_INFO, "HTTP POST Status = %d, content_length = %" PRIu64,
-         esp_http_client_get_status_code( client ),
-         esp_http_client_get_content_length( client ) );
+    LOG( PRINT_ERROR, "HTTP PUT request failed" );
   }
   else
   {
-    LOG( PRINT_ERROR, "HTTP POST request failed: %s", esp_err_to_name( err ) );
+    LOG( PRINT_INFO, "HTTP PUT Status = 200, content_length = %d", strlen( localResponseBuffer ) );
   }
-  esp_http_client_cleanup( client );
 }
 
 static void _hawkbit_download_image( void )
 {
   LOG( PRINT_INFO, "_hawkbit_process: %s", urlDeploymentBase );
   memset( &hawkbitDeployment, 0, sizeof( hawkbitDeployment ) );
-  esp_http_client_handle_t client = _init_http_client( urlDeploymentBase, HTTP_METHOD_GET, NULL, 0, "application/hal+json" );
-  if ( client == NULL )
-  {
-    return;
-  }
+  _http_perform_and_wait( urlDeploymentBase, "GET", NULL, "application/hal+json" );
 
-  esp_err_t err = esp_http_client_perform( client );
-  if ( err == ESP_OK )
+  if ( responseCode != 200 )
   {
-    LOG( PRINT_INFO, "HTTP GET Status = %d, content_length = %" PRIu64,
-         esp_http_client_get_status_code( client ),
-         esp_http_client_get_content_length( client ) );
-    esp_http_client_cleanup( client );
-  }
-  else
-  {
-    LOG( PRINT_ERROR, "HTTP GET request failed: %s", esp_err_to_name( err ) );
-    esp_http_client_cleanup( client );
+    LOG( PRINT_ERROR, "HTTP GET request failed" );
     return;
   }
 
@@ -557,7 +400,7 @@ static void _hawkbit_download_image( void )
   {
     for ( int chunk = 0; chunk < hawkbitDeployment.chunkSize; chunk++ )
     {
-      for ( int art = 0; art < hawkbitDeployment.chunk[chunk].artifactsSize; art++ )
+      for ( int art = 0; chunk < hawkbitDeployment.chunk[chunk].artifactsSize; art++ )
       {
         _hawkbit_process( &hawkbitDeployment.chunk[chunk].artifacts[art] );
       }
@@ -630,8 +473,11 @@ void HawkbitProcess_Init( void )
   ctx.queue = xQueueCreate( 8, sizeof( event_t ) );
   assert( ctx.queue );
 
-  polling_timer = xTimerCreate( "PollingTimer", pdMS_TO_TICKS( 30000 ), pdTRUE, NULL, _timer_polling );
+  polling_timer = xTimerCreate( "PollingTimer", pdMS_TO_TICKS( 300000 ), pdTRUE, NULL, _timer_polling );
   assert( polling_timer );
+
+  http_semaphore = xSemaphoreCreateBinary();
+  assert( http_semaphore );
 
   xTaskCreate( &_task, "_hawkbit_task", 1024 * 6, NULL, 5, &hawkbit_task_handle );
 }
@@ -657,10 +503,16 @@ void HawkbitProcess_Deinit( void )
     hawkbit_task_handle = NULL;
   }
 
-  if ( client != NULL )
+  if ( client_conn != NULL )
   {
-    esp_http_client_cleanup( client );
-    client = NULL;
+    client_conn->is_closing = 1;
+    client_conn = NULL;
+  }
+
+  if ( http_semaphore != NULL )
+  {
+    vSemaphoreDelete( http_semaphore );
+    http_semaphore = NULL;
   }
 
   memset( &ctx, 0, sizeof( ctx ) );
