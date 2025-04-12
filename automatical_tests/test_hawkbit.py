@@ -7,6 +7,7 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
+
 class TestClassHawkbit:
     @pytest.fixture(scope="class", autouse=True)
     def setup_class(self, request):
@@ -15,7 +16,9 @@ class TestClassHawkbit:
         self.hawkbit_address = "http://192.168.1.2:8090"
         self.hawkbit_username = "admin"
         self.hawkbit_password = "admin"
-        self.hawkbit_api = HawkbitManagementAPI(self.hawkbit_address, self.hawkbit_username, self.hawkbit_password)
+        self.hawkbit_api = HawkbitManagementAPI(
+            self.hawkbit_address, self.hawkbit_username, self.hawkbit_password
+        )
         self._scan()
 
         # Attach the instance to the request to make it accessible in tests
@@ -75,29 +78,74 @@ class TestClassHawkbit:
             time.sleep(5)
         else:
             assert False, f"Device {target_id} is not registered in Hawkbit server"
-    
+
     def test_add_binary_file_and_update_device(self):
+        version = "1.0.18"
         status, serial_number = self.dev.get_serial_number_config()
         assert status == 200, f"Failed to get serial number: {serial_number}"
-        print(f"Serial number: {serial_number}")
-        # Add a binary file to Hawkbit server
+        LOGGER.info(f"Serial number: {serial_number}")
+
+        # Step 1: Create a software module
+        module_id = self.hawkbit_api.create_software_module(
+            "HQC", "TestOS", "TestOS", "os", version
+        )
+        assert module_id is not None, "Failed to create software module"
+
+        # Step 2: Upload an artifact
         file_path = "../build/bimbrownik.bin"
-        status, response = self.hawkbit_api.add_software_module("test_module")
-        assert status == 201, f"Failed to add software module: {response}"
-        status, response = self.hawkbit_api.add_software_module_version("test_module", "1.0")
-        assert status == 201, f"Failed to add software module version: {response}"
-        status, response = self.hawkbit_api.add_artifact("test_module", "1.0", file_path)
-        assert status == 201, f"Failed to add artifact: {response}"
-        status, response = self.hawkbit_api.create_distribution_set("test_distribution", "test_module", "1.0")
-        assert status == 201, f"Failed to create distribution set: {response}"
-        status, response = self.hawkbit_api.assign_distribution_set("test_distribution", serial_number)
-        assert status == 200, f"Failed to assign distribution set: {response}"
+        self.hawkbit_api.upload_artifact(module_id, file_path)
 
+        # Step 3: Create a distribution set
+        distribution_id = self.hawkbit_api.create_distribution_set(
+            "TestDS", "Distribution for automated tests", "os", version
+        )
+        assert distribution_id is not None, "Failed to create distribution set"
 
-        # Update the device
-        status, response = self.dev.update_device()
-        assert status == 200, f"Failed to update device: {response}"
-        time.sleep(5)
+        # Step 4: Assign the software module to the distribution set
+        self.hawkbit_api.assign_software_module(distribution_id, module_id)
+
+        # Step 5: Assign the distribution set to the device
+        self.hawkbit_api.assign_distribution_set(distribution_id, serial_number)
+
+        # Step 6: Reboot the device for polling the update
+        self.dev.restart_device()
+
+        action_id = self.hawkbit_api.get_target_action(serial_number)
+
+        # Step 7: Provide intermediary feedback and wait to finish update during 5 minutes
+        start_time = time.time()
+        reboot = False
+        update = False
+        while time.time() - start_time < 300:
+            action_details = self.hawkbit_api.get_action_by_id(serial_number, action_id)
+            LOGGER.info(f"Action details: {action_details}")
+            if action_details:
+                content = action_details.get("content", [])
+                for action in content:
+                    if action.get("type") == "error":
+                        assert False, f"Update failed: {action.get('messages', [])}"
+                    if action.get("type") == "finished":
+                        print("Device updated successfully")
+                        update = True
+                        break
+                    if action.get("type") == "running" and reboot == False:
+                        for messages in action.get("messages", []):
+                            if "reboot" in messages:
+                                reboot = True
+                                self.dev.restart_device()
+                                break
+                        break
+            if update:
+                break
+            time.sleep(5)
+        else:
+            assert False, "Device update failed after 5 minutes"
+
+        # Unassign the software module from the distribution set and delete them after the test
+        self.hawkbit_api.unassign_software_module(distribution_id, module_id)
+        self.hawkbit_api.delete_distribution_set(distribution_id)
+        self.hawkbit_api.delete_software_module(module_id)
+
 
 if __name__ == "__main__":
     pytest.main()

@@ -1,6 +1,8 @@
 import requests
 import json
 from base64 import b64encode
+import os
+
 
 class HawkbitManagementAPI:
     def __init__(self, address, username, password, ca_cert=None):
@@ -27,7 +29,9 @@ class HawkbitManagementAPI:
 
         :return: The basic authentication token.
         """
-        token = b64encode(f"{self.username}:{self.password}".encode("utf-8")).decode("ascii")
+        token = b64encode(f"{self.username}:{self.password}".encode("utf-8")).decode(
+            "ascii"
+        )
         return f"Basic {token}"
 
     def make_request(self, method, url, headers=None, **kwargs):
@@ -42,7 +46,10 @@ class HawkbitManagementAPI:
         """
         if headers is None:
             headers = self.headers
-        response = requests.request(method, url, headers=headers, verify=self.ca_cert, **kwargs)
+        print(f"Making request: {method} {url} {headers} {kwargs}")
+        response = requests.request(
+            method, url, headers=headers, verify=self.ca_cert, **kwargs
+        )
         if response.status_code in [200, 201]:
             return response
         else:
@@ -57,7 +64,10 @@ class HawkbitManagementAPI:
         :param auth_token: The authentication token for the device.
         """
         url = f"{self.address}/controller/v1/{target_id}/registration"
-        data = {"mode": "merge", "data": {"controllerId": target_id, "tenant": "default"}}
+        data = {
+            "mode": "merge",
+            "data": {"controllerId": target_id, "tenant": "default"},
+        }
         headers = {
             "Authorization": f"TargetToken {auth_token}",
             "Content-Type": "application/json",
@@ -114,6 +124,7 @@ class HawkbitManagementAPI:
         :param description: The description of the software module.
         :param module_type: The type of the software module.
         :param version: The version of the software module.
+        :return: The ID of the created software module.
         """
         url = f"{self.address}/rest/v1/softwaremodules"
         data = [
@@ -122,14 +133,17 @@ class HawkbitManagementAPI:
                 "name": name,
                 "description": description,
                 "type": module_type,
-                "version": version
+                "version": version,
             }
         ]
         response = self.make_request("POST", url, json=data)
         if response:
-            print("Software module created successfully")
+            response_json = response.json()
+            module_id = response_json[0]["id"]
+            print(f"Software module created successfully with ID: {module_id}")
+            return module_id
 
-    def upload_artifact(self, module_id, file_path):
+    def upload_artifact(self, module_id, file_path, filename="main.bin"):
         """
         Upload an artifact to a software module on the Hawkbit server.
 
@@ -138,13 +152,20 @@ class HawkbitManagementAPI:
         """
         url = f"{self.address}/rest/v1/softwaremodules/{module_id}/artifacts"
         files = {
-            "file": open(file_path, "rb")
+            "file": (filename, open(file_path, "rb"), "type=application/octet-stream")
         }
-        response = self.make_request("POST", url, files=files)
+        headers = {
+            "Authorization": self.basic_auth(),
+            "accept": "application/json",
+        }
+
+        response = self.make_request("POST", url, headers=headers, files=files)
         if response:
             print("Artifact uploaded successfully")
 
-    def create_distribution_set(self, name, description, ds_type, version, required_migration_step=False):
+    def create_distribution_set(
+        self, name, description, ds_type, version, required_migration_step=False
+    ):
         """
         Create a new distribution set on the Hawkbit server.
 
@@ -153,6 +174,7 @@ class HawkbitManagementAPI:
         :param ds_type: The type of the distribution set.
         :param version: The version of the distribution set.
         :param required_migration_step: Whether a migration step is required.
+        :return: The ID of the created distribution set.
         """
         url = f"{self.address}/rest/v1/distributionsets"
         data = [
@@ -161,12 +183,15 @@ class HawkbitManagementAPI:
                 "name": name,
                 "description": description,
                 "type": ds_type,
-                "version": version
+                "version": version,
             }
         ]
         response = self.make_request("POST", url, json=data)
         if response:
-            print("Distribution set created successfully")
+            response_json = response.json()
+            distribution_id = response_json[0]["id"]
+            print(f"Distribution set created successfully with ID: {distribution_id}")
+            return distribution_id
 
     def assign_software_module(self, distribution_id, module_id):
         """
@@ -176,16 +201,19 @@ class HawkbitManagementAPI:
         :param module_id: The ID of the software module.
         """
         url = f"{self.address}/rest/v1/distributionsets/{distribution_id}/assignedSM"
-        data = [
-            {
-                "id": str(module_id)
-            }
-        ]
+        data = [{"id": str(module_id)}]
         response = self.make_request("POST", url, json=data)
         if response:
             print("Software module assigned successfully")
+        else:
+            print("Failed to assign")
+        assert (
+            response.status_code == 200
+        ), f"Failed to assign software module: {response.status_code} {response.text}"
 
-    def assign_distribution_set(self, distribution_id, target_id, assignment_type="forced"):
+    def assign_distribution_set(
+        self, distribution_id, target_id, assignment_type="forced"
+    ):
         """
         Assign a distribution set to a target on the Hawkbit server.
 
@@ -193,16 +221,32 @@ class HawkbitManagementAPI:
         :param target_id: The ID of the target.
         :param assignment_type: The type of assignment (default is "forced").
         """
-        url = f"{self.address}/rest/v1/distributionsets/{distribution_id}/assignedTargets/"
-        data = [
-            {
-                "id": target_id,
-                "type": assignment_type
-            }
-        ]
+        url = (
+            f"{self.address}/rest/v1/distributionsets/{distribution_id}/assignedTargets"
+        )
+        data = [{"id": target_id, "type": assignment_type}]
         response = self.make_request("POST", url, json=data)
         if response:
             print("Distribution set assigned successfully")
+        assert (
+            response.status_code == 200
+        ), f"Failed to assign distribution set: {response.status_code} {response.text}"
+
+    def get_target_action(self, target_id):
+        """
+        Get the latest action for a specific target.
+
+        :param target_id: The ID of the target.
+        :return: The action ID if successful, None otherwise.
+        """
+        url = f"{self.address}/rest/v1/targets/{target_id}/actions?limit=1"
+        response = self.make_request("GET", url)
+        if response:
+            response_json = response.json()
+            content = response_json.get("content", [])
+            if content:
+                return content[0].get("id")
+        return None
 
     def poll_for_updates(self, controller_id, target_token):
         """
@@ -214,7 +258,7 @@ class HawkbitManagementAPI:
         url = f"{self.address}/controller/v1/{controller_id}"
         headers = {
             "Accept": "application/hal+json",
-            "Authorization": f"TargetToken {target_token}"
+            "Authorization": f"TargetToken {target_token}",
         }
         response = self.make_request("GET", url, headers=headers)
         if response:
@@ -232,7 +276,7 @@ class HawkbitManagementAPI:
         url = f"{self.address}/controller/v1/{controller_id}/deploymentBase/{action_id}"
         headers = {
             "Accept": "application/hal+json",
-            "Authorization": f"TargetToken {target_token}"
+            "Authorization": f"TargetToken {target_token}",
         }
         response = self.make_request("GET", url, headers=headers)
         if response:
@@ -249,12 +293,10 @@ class HawkbitManagementAPI:
         :param target_token: The target token for authentication.
         """
         url = f"{self.address}/controller/v1/{controller_id}/softwaremodules/{module_id}/artifacts/{filename}"
-        headers = {
-            "Authorization": f"TargetToken {target_token}"
-        }
+        headers = {"Authorization": f"TargetToken {target_token}"}
         response = self.make_request("GET", url, headers=headers)
         if response:
-            with open(filename, 'wb') as file:
+            with open(filename, "wb") as file:
                 file.write(response.content)
             print(f"Artifact {filename} downloaded successfully")
 
@@ -262,10 +304,10 @@ class HawkbitManagementAPI:
         """
         Enable gateway token authentication on the Hawkbit server.
         """
-        url = f"{self.address}/rest/v1/system/configs/authentication.gatewaytoken.enabled"
-        data = {
-            "value": True
-        }
+        url = (
+            f"{self.address}/rest/v1/system/configs/authentication.gatewaytoken.enabled"
+        )
+        data = {"value": True}
         response = self.make_request("PUT", url, json=data)
         if response:
             print("Gateway token authentication enabled successfully")
@@ -277,14 +319,14 @@ class HawkbitManagementAPI:
         :param token_value: The value of the gateway token.
         """
         url = f"{self.address}/rest/v1/system/configs/authentication.gatewaytoken.key"
-        data = {
-            "value": token_value
-        }
+        data = {"value": token_value}
         response = self.make_request("PUT", url, json=data)
         if response:
             print("Gateway token initialized successfully")
 
-    def create_rollout(self, distribution_set_id, name, description, target_filter_query, groups):
+    def create_rollout(
+        self, distribution_set_id, name, description, target_filter_query, groups
+    ):
         """
         Create a new rollout on the Hawkbit server.
 
@@ -293,6 +335,7 @@ class HawkbitManagementAPI:
         :param description: The description of the rollout.
         :param target_filter_query: The target filter query for the rollout.
         :param groups: The groups for the rollout.
+        :return: The ID of the created rollout.
         """
         url = f"{self.address}/rest/v1/rollouts"
         data = {
@@ -300,11 +343,15 @@ class HawkbitManagementAPI:
             "targetFilterQuery": target_filter_query,
             "name": name,
             "description": description,
-            "groups": groups
+            "groups": groups,
         }
+
         response = self.make_request("POST", url, json=data)
         if response:
-            print("Rollout created successfully")
+            response_json = response.json()
+            rollout_id = response_json["id"]
+            print(f"Rollout created successfully with ID: {rollout_id}")
+            return rollout_id
 
     def start_rollout(self, rollout_id):
         """
@@ -323,15 +370,16 @@ class HawkbitManagementAPI:
 
         :param query: The query for the target filter.
         :param name: The name of the target filter.
+        :return: The ID of the created target filter.
         """
         url = f"{self.address}/rest/v1/targetfilters"
-        data = {
-            "query": query,
-            "name": name
-        }
+        data = {"query": query, "name": name}
         response = self.make_request("POST", url, json=data)
         if response:
-            print("Target filter created successfully")
+            response_json = response.json()
+            target_filter_id = response_json["id"]
+            print(f"Target filter created successfully with ID: {target_filter_id}")
+            return target_filter_id
 
     def set_auto_assignment_distribution(self, target_filter_id, distribution_set_id):
         """
@@ -339,14 +387,69 @@ class HawkbitManagementAPI:
 
         :param target_filter_id: The ID of the target filter.
         :param distribution_set_id: The ID of the distribution set.
+        :return: The ID of the auto-assignment.
         """
         url = f"{self.address}/rest/v1/targetfilters/{target_filter_id}/autoAssignDS"
-        data = {
-            "id": str(distribution_set_id)
-        }
+        data = {"id": str(distribution_set_id)}
         response = self.make_request("POST", url, json=data)
         if response:
-            print("Auto assignment distribution set successfully")
+            response_json = response.json()
+            auto_assignment_id = response_json["id"]
+            print(
+                f"Auto assignment distribution set successfully with ID: {auto_assignment_id}"
+            )
+            return auto_assignment_id
+
+    def get_action_by_id(self, target_id, action_id):
+        """
+        Return action details by ID for a specific target.
+
+        :param target_id: The ID of the target.
+        :param action_id: The ID of the action.
+        :return: The action details as a dictionary.
+        """
+        url = f"{self.address}/rest/v1/targets/{target_id}/actions/{action_id}/status?offset=0&limit=1"
+        response = self.make_request("GET", url)
+        if response:
+            return response.json()
+        return None
+
+    def delete_distribution_set(self, distribution_id):
+        """
+        Delete a distribution set from the Hawkbit server.
+
+        :param distribution_id: The ID of the distribution set.
+        """
+        url = f"{self.address}/rest/v1/distributionsets/{distribution_id}"
+        response = self.make_request("DELETE", url)
+        if response:
+            print(f"Distribution set {distribution_id} deleted successfully")
+
+    def delete_software_module(self, module_id):
+        """
+        Delete a software module from the Hawkbit server.
+
+        :param module_id: The ID of the software module.
+        """
+        url = f"{self.address}/rest/v1/softwaremodules/{module_id}"
+        response = self.make_request("DELETE", url)
+        if response:
+            print(f"Software module {module_id} deleted successfully")
+
+    def unassign_software_module(self, distribution_id, module_id):
+        """
+        Unassign a software module from a distribution set on the Hawkbit server.
+
+        :param distribution_id: The ID of the distribution set.
+        :param module_id: The ID of the software module.
+        """
+        url = f"{self.address}/rest/v1/distributionsets/{distribution_id}/assignedSM/{module_id}"
+        response = self.make_request("DELETE", url)
+        if response:
+            print(
+                f"Software module {module_id} unassigned from distribution set {distribution_id} successfully"
+            )
+
 
 if __name__ == "__main__":
     api = HawkbitManagementAPI("http://192.168.1.2:8090", "admin", "admin")
@@ -354,11 +457,15 @@ if __name__ == "__main__":
     # print(securityToken)
     # api.register_device("Bimbrownik1", "1234567890")
     api.add_binary_file("Bimbrownik1", "../build/bimbrownik.bin", "1234567890")
-    api.create_software_module("Example Ltd.", "MyOS", "First version of MyOS.", "os", "1.0")
-    api.upload_artifact(1, "path/to/your/artifact01.file")
-    api.create_distribution_set("MyDS", "My initial distribution", "os", "1.0")
-    api.assign_software_module(1, 1)
-    api.assign_distribution_set(1, "dev01")
+    module_id = api.create_software_module(
+        "Example Ltd.", "MyOS", "First version of MyOS.", "os", "1.0"
+    )
+    api.upload_artifact(module_id, "path/to/your/artifact01.file")
+    distribution_id = api.create_distribution_set(
+        "MyDS", "My initial distribution", "os", "1.0"
+    )
+    api.assign_software_module(distribution_id, module_id)
+    api.assign_distribution_set(distribution_id, "dev01")
     api.poll_for_updates("dev01", "REPLACE_WITH_TARGET_TOKEN")
     api.inspect_deployment_action("dev01", 1, "REPLACE_WITH_TARGET_TOKEN")
     api.download_artifact("dev01", 1, "artifact01.file", "REPLACE_WITH_TARGET_TOKEN")
@@ -369,67 +476,42 @@ if __name__ == "__main__":
             "name": "EMEA_Devices",
             "description": "Devices in EMEA",
             "targetFilterQuery": "name==emea*",
-            "successCondition": {
-                "condition": "THRESHOLD",
-                "expression": "70"
-            },
-            "successAction": {
-                "expression": "",
-                "action": "NEXTGROUP"
-            },
-            "errorAction": {
-                "expression": "",
-                "action": "PAUSE"
-            },
-            "errorCondition": {
-                "condition": "THRESHOLD",
-                "expression": "20"
-            }
+            "successCondition": {"condition": "THRESHOLD", "expression": "70"},
+            "successAction": {"expression": "", "action": "NEXTGROUP"},
+            "errorAction": {"expression": "", "action": "PAUSE"},
+            "errorCondition": {"condition": "THRESHOLD", "expression": "20"},
         },
         {
             "name": "APAC_Devices",
             "description": "Devices in APAC",
             "targetFilterQuery": "name==apac*",
-            "successCondition": {
-                "condition": "THRESHOLD",
-                "expression": "50"
-            },
-            "successAction": {
-                "expression": "",
-                "action": "NEXTGROUP"
-            },
-            "errorAction": {
-                "expression": "",
-                "action": "PAUSE"
-            },
-            "errorCondition": {
-                "condition": "THRESHOLD",
-                "expression": "20"
-            }
+            "successCondition": {"condition": "THRESHOLD", "expression": "50"},
+            "successAction": {"expression": "", "action": "NEXTGROUP"},
+            "errorAction": {"expression": "", "action": "PAUSE"},
+            "errorCondition": {"condition": "THRESHOLD", "expression": "20"},
         },
         {
             "name": "AMER_Devices",
             "description": "Devices in AMER",
             "targetFilterQuery": "name==amer*",
-            "successCondition": {
-                "condition": "THRESHOLD",
-                "expression": "25"
-            },
-            "successAction": {
-                "expression": "",
-                "action": "NEXTGROUP"
-            },
-            "errorAction": {
-                "expression": "",
-                "action": "PAUSE"
-            },
-            "errorCondition": {
-                "condition": "THRESHOLD",
-                "expression": "20"
-            }
-        }
+            "successCondition": {"condition": "THRESHOLD", "expression": "25"},
+            "successAction": {"expression": "", "action": "NEXTGROUP"},
+            "errorAction": {"expression": "", "action": "PAUSE"},
+            "errorCondition": {"condition": "THRESHOLD", "expression": "20"},
+        },
     ]
-    api.create_rollout(1, "MyOS-Global-Rollout-1.0", "Global rollout of MyOS", "description=='Plug and Play*'", groups)
-    api.start_rollout(1)
-    api.create_target_filter("name==emeadevice*", "EMEA_Devices")
-    api.set_auto_assignment_distribution(1, 1)
+    rollout_id = api.create_rollout(
+        1,
+        "MyOS-Global-Rollout-1.0",
+        "Global rollout of MyOS",
+        "description=='Plug and Play*'",
+        groups,
+    )
+    api.start_rollout(rollout_id)
+    target_filter_id = api.create_target_filter("name==emeadevice*", "EMEA_Devices")
+    api.set_auto_assignment_distribution(target_filter_id, 1)
+    action_details = api.get_action_by_id("target137", 1)
+    print(action_details)
+    api.unassign_software_module(distribution_id, module_id)
+    api.delete_distribution_set(distribution_id)
+    api.delete_software_module(module_id)

@@ -31,8 +31,8 @@ class TestClassHttpApi:
 
     def test_init_device_wifi_connection(self):
         password = "SuperTrudne1!-_"
-        router_ssid = "TP-Link_2AC1"
-        router_password = "19681115"
+        router_ssid = "dmyshe"
+        router_password = "30031999f"
 
         # Try to connect to the device using host_scan_and_connect_to_device
         status, response = device.host_scan_and_connect_to_device(password)

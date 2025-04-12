@@ -18,6 +18,7 @@ class DeviceListener(ServiceListener):
 
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         info = zc.get_service_info(type_, name)
+        print(f"Find {name}")
         if name.find(self._name) != -1:
             address = info.parsed_scoped_addresses()[0]
             port = info.port
