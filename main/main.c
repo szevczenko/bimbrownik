@@ -18,6 +18,7 @@
 #include "network_manager.h"
 #include "nvs_flash.h"
 #include "nvs_sync.h"
+#include "ota_drv.h"
 #include "ow/devices/ow_device_ds18x20.h"
 #include "ow/ow.h"
 #include "ow_esp32.h"
@@ -106,6 +107,7 @@ void app_init( void )
   nvs_sync_create();
   fs_init();
   DevConfig_Init();
+  OTA_Init();
 }
 
 void app_main( void )

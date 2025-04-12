@@ -1,5 +1,5 @@
-idf_component_register(SRCS "network_manager.c" "api_temperature_sensor.c" "hawkbit_process.c"
-                            "api_hawkbit.c" "hawkbit_config.c" "mqtt_app.c" "mqtt_config.c"
+idf_component_register(SRCS "network_manager.c" "api_temperature_sensor.c" 
+                            "mqtt_app.c" "mqtt_config.c" "api_hawkbit.c" 
                             "api_mqtt.c" "device_manager.c" "api_config.c" "api.c" "app_manager.c" 
                     INCLUDE_DIRS "."
                     REQUIRES utils

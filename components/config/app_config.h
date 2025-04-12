@@ -18,10 +18,12 @@
 #define CONFIG_DEBUG_JSON            0
 #define CONFIG_DEBUG_TCP_SERVER      0
 #define CONFIG_DEBUG_TCP_TRANSPORT   0
+#define CONFIG_DEBUG_MDNS            1
 #define CONFIG_DEBUG_MQTT_APP        1
 #define CONFIG_DEBUG_DEVICE_MANAGER  1
 #define CONFIG_DEBUG_HTTP_SERVER     1
 #define CONFIG_DEBUG_HTTP_HAWKBIT    1
+#define CONFIG_DEBUG_OTA             1
 
 //////////////  CONFIG MODULES  //////////////////
 #define NORMALPRIOR 5

@@ -18,7 +18,7 @@
 #define MODULE_NAME "[mDNS Srv] "
 #define DEBUG_LVL   PRINT_INFO
 
-#if CONFIG_DEBUG_TCP_SERVER
+#if CONFIG_DEBUG_MDNS
 #define LOG( _lvl, ... ) \
   debug_printf( DEBUG_LVL, _lvl, MODULE_NAME __VA_ARGS__ )
 #else

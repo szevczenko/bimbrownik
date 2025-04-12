@@ -206,7 +206,7 @@ static error_code_t analog1_deinit( void )
   return ERROR_CODE_OK;
 }
 
-static void _alert_water_flow( uint32_t value )
+static void _alert_water_flow( water_flow_sensor_event_t event, uint32_t value )
 {
 }
 
@@ -218,7 +218,7 @@ static void _init_devices( void )
   DigitalIn_Init( &ctx.devices.digital_inputs[1], "input2", input2_read, 19 );
   AnalogIn_Init( &ctx.devices.analog_inputs[0], "t1", "'C", analog1_init, analog1_read, analog1_deinit );
   AnalogIn_Init( &ctx.devices.analog_inputs[1], "t2", "m", analog1_init, analog2_read, analog1_deinit );
-  WaterFlowSensor_Init( &ctx.devices.water_flow[0], "v1_flow", "l", _alert_water_flow, 18 );
+  WaterFlowSensor_Init( &ctx.devices.water_flow[0], "v1_flow", 100, _alert_water_flow, 18 );
 }
 
 static void _state_disabled_init( const app_event_t* event )
