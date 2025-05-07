@@ -4,3 +4,4 @@
 /automatical_tests/__pycache__
 /automatical_tests/.pytest_cache
 /automatical_tests/venv
+/dependencies.lock
