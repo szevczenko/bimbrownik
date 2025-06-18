@@ -13,10 +13,8 @@
 #include <sys/stat.h>
 #include <sys/unistd.h>
 
-#include "app_config.h"
 #include "esp_err.h"
 #include "esp_spiffs.h"
-#include "json_parser.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 
@@ -69,13 +67,14 @@ static uint8_t default_tls = false;
 
 static value_t config_values[MQTT_CONFIG_VALUE_LAST] =
   {
-    [MQTT_CONFIG_VALUE_ADDRESS] = {.name = "address", .type = VALUE_TYPE_STRING, .value = (void*) config_data.address,          .default_value = (void*) _default_address   },
-    [MQTT_CONFIG_VALUE_SSL] = {.name = "ssl",     .type = VALUE_TYPE_BOOL,   .value = (void*) &config_data.use_ssl,         .default_value = (void*) &default_tls       },
-    [MQTT_CONFIG_VALUE_TOPIC_PREFIX] = {.name = "prefix",  .type = VALUE_TYPE_STRING, .value = (void*) &config_data.config_topic,    .default_value = &_default_config_topic     },
-    [MQTT_CONFIG_VALUE_POST_DATA_TOPIC] = {.name = "post",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.post_data_topic, .default_value = (void*) _default_post_topic},
-    [MQTT_CONFIG_VALUE_USERNAME] = {.name = "user",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.username,        .default_value = (void*) ""                 },
-    [MQTT_CONFIG_VALUE_PASSWORD] = {.name = "pass",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.password,        .default_value = (void*) ""                 },
-    [MQTT_CONFIG_VALUE_CERT] = {.name = "cert",    .type = VALUE_TYPE_CERT,   .value = (void*) &config_data.cert,            .default_value = (void*) ""                 },
+    [MQTT_CONFIG_VALUE_ADDRESS] = {.name = "address",   .type = VALUE_TYPE_STRING, .value = (void*) config_data.address,          .default_value = (void*) _default_address   },
+    [MQTT_CONFIG_VALUE_SSL] = {.name = "ssl",       .type = VALUE_TYPE_BOOL,   .value = (void*) &config_data.use_ssl,         .default_value = (void*) &default_tls       },
+    [MQTT_CONFIG_VALUE_TOPIC_PREFIX] = {.name = "prefix",    .type = VALUE_TYPE_STRING, .value = (void*) &config_data.config_topic,    .default_value = &_default_config_topic     },
+    [MQTT_CONFIG_VALUE_POST_DATA_TOPIC] = {.name = "post",      .type = VALUE_TYPE_STRING, .value = (void*) &config_data.post_data_topic, .default_value = (void*) _default_post_topic},
+    [MQTT_CONFIG_VALUE_USERNAME] = {.name = "user",      .type = VALUE_TYPE_STRING, .value = (void*) &config_data.username,        .default_value = (void*) ""                 },
+    [MQTT_CONFIG_VALUE_PASSWORD] = {.name = "pass",      .type = VALUE_TYPE_STRING, .value = (void*) &config_data.password,        .default_value = (void*) ""                 },
+    [MQTT_CONFIG_VALUE_CLIENT_ID] = {.name = "client_id", .type = VALUE_TYPE_STRING, .value = (void*) &config_data.control_topic,   .default_value = (void*) ""                 },
+    [MQTT_CONFIG_VALUE_CERT] = {.name = "cert",      .type = VALUE_TYPE_CERT,   .value = (void*) &config_data.cert,            .default_value = (void*) ""                 },
 };
 
 static bool _read_data( void )

@@ -278,7 +278,7 @@ static void _state_idle_event_post( const app_event_t* event )
     offset += WaterFlowSensor_GetStr( &ctx.devices.water_flow[i], &ctx.buffer[offset], sizeof( ctx.buffer ) - offset, true );
   }
   offset += snprintf( &ctx.buffer[offset], sizeof( ctx.buffer ) - offset, "}" );
-  MqttApp_PostData( "test", ctx.buffer, 0 );
+  // MqttApp_PostData( "test", ctx.buffer, 0 );
   AppTimerStart( timers, TIMER_ID_POST );
 }
 

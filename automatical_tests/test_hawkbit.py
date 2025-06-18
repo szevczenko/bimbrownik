@@ -80,7 +80,7 @@ class TestClassHawkbit:
             assert False, f"Device {target_id} is not registered in Hawkbit server"
 
     def test_add_binary_file_and_update_device(self):
-        version = "1.0.25"
+        version = "1.0.27"
         status, serial_number = self.dev.get_serial_number_config()
         assert status == 200, f"Failed to get serial number: {serial_number}"
         LOGGER.info(f"Serial number: {serial_number}")

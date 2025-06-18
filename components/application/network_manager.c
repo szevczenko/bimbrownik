@@ -222,7 +222,7 @@ static void _disable_ap_cb( TimerHandle_t xTimer )
 {
   _send_internal_event( REQUEST_START_CLIENT, NULL, 0 );
 }
-
+void test_thing_board(void);
 static void _start_client_services( void )
 {
   // app_event_t tcp_event = { 0 };
@@ -239,6 +239,7 @@ static void _start_client_services( void )
   HTTPServer_Init();
   mDNS_Start();
   HawkbitProcess_Init();
+  test_thing_board();
 }
 
 static void _stop_client_services( void )

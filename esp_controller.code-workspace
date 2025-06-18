@@ -174,7 +174,8 @@
             "hawkbit_config.h": "c",
             "param.h": "c",
             "hawkbit_data.h": "c",
-            "hawkbit_parser.h": "c"
+            "hawkbit_parser.h": "c",
+            "mqtt_app.h": "c"
         },
         "cSpell.words": [
             "Dmytro",

@@ -14,8 +14,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "app_events.h"
-
 /* Public macros -------------------------------------------------------------*/
 
 #define MQTT_CONFIG_STR_SIZE 64
@@ -31,6 +29,7 @@ typedef enum
   MQTT_CONFIG_VALUE_POST_DATA_TOPIC,
   MQTT_CONFIG_VALUE_USERNAME,
   MQTT_CONFIG_VALUE_PASSWORD,
+  MQTT_CONFIG_VALUE_CLIENT_ID,
   MQTT_CONFIG_VALUE_CERT,
   MQTT_CONFIG_VALUE_LAST
 } mqtt_config_value_t;

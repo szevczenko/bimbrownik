@@ -14,7 +14,6 @@
 #include "hawkbit_config.h"
 #include "hawkbit_process.h"
 #include "mongoose_task.h"
-#include "mqtt_app.h"
 #include "network_manager.h"
 #include "nvs_flash.h"
 #include "nvs_sync.h"

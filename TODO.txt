@@ -1,13 +1,7 @@
-TODO:
-add TCP server keepAlive
-add save and read config
-add mechanism to write serial number
-add to config init nvs and check status init
-add OTA
-
-Done:
-add header to TCP frame
-add in API parsing iterator method
-add file with error_codes
-add to json_parser start method and get response. JSONParse should return error_code. {"error":0, "msg":"ok", "i":123}
-add different api folder and files: api_temp_sensors, ... . api.c should connect and init all files.
+1. Telemtry mqtt api
+2. Attribute mqtt api
+3. Provisioning https://thingsboard.io/docs/user-guide/certificates/
+  - enable on platform https://thingsboard.io/docs/user-guide/mqtt-over-ssl/
+  - key generation
+  - test secure communication
+4. Support proto buffer
